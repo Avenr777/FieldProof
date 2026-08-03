@@ -1,0 +1,14 @@
+[project]
+name = "fieldproof-backend"
+version = "0.1.0"
+description = "FastAPI backend for FieldProof with LLM connectors."
+dependencies = [
+  "fastapi>=0.109.0",
+  "uvicorn[standard]>=0.23.0",
+  "python-dotenv>=1.0.0",
+  "httpx>=0.24.0"
+]
+
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
