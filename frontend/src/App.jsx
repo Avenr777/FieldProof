@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import * as api from "./api";
 import {
   LayoutGrid, Briefcase, FileText, FileCheck2, Users, ShieldCheck, BarChart3, Settings, LifeBuoy,
   Search, Bell, ChevronDown, ChevronRight, Mic, Camera, ScanLine, Plus, Upload, Download, Send,
@@ -525,8 +526,57 @@ function AuthPage({ onEnter, onBack }) {
   const [mode, setMode] = useState("login"); // login | signup
   const [step, setStep] = useState(1);
   const [selectedPlan, setSelectedPlan] = useState("Growth");
+  const [authError, setAuthError] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  // Refs to collect form field values without controlled state
+  const loginEmailRef = useRef();
+  const loginPasswordRef = useRef();
+  const signupBusinessRef = useRef();
+  const signupFullNameRef = useRef();
+  const signupTradeRef = useRef();
+  const signupEmailRef = useRef();
+  const signupPasswordRef = useRef();
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setAuthError(null);
+    setLoading(true);
+    try {
+      const email = loginEmailRef.current?.value;
+      const password = loginPasswordRef.current?.value;
+      const result = await api.login(email, password);
+      api.setToken(result.access_token);
+      onEnter();
+    } catch (err) {
+      setAuthError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const goSignupStep2 = (e) => { e.preventDefault(); setStep(2); };
+
+  const handleSignup = async () => {
+    setAuthError(null);
+    setLoading(true);
+    try {
+      const result = await api.signup({
+        business_name: signupBusinessRef.current?.value,
+        full_name: signupFullNameRef.current?.value,
+        email: signupEmailRef.current?.value,
+        password: signupPasswordRef.current?.value,
+        primary_trade: signupTradeRef.current?.value || "General",
+      });
+      api.setToken(result.access_token);
+      onEnter();
+    } catch (err) {
+      setAuthError(err.message);
+      setStep(1);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="fs-root min-h-screen bg-stone-950 flex">
@@ -578,23 +628,29 @@ function AuthPage({ onEnter, onBack }) {
               </button>
             </div>
 
+            {authError && (
+              <div className="mb-3 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5">
+                {authError}
+              </div>
+            )}
+
             {mode === "login" && (
-              <form onSubmit={(e) => { e.preventDefault(); onEnter(); }} className="space-y-4">
+              <form onSubmit={handleLogin} className="space-y-4">
                 <h1 className="fs-display text-xl font-semibold text-stone-900 mb-1">Welcome back</h1>
                 <p className="text-sm text-stone-500 mb-5">Log in to your business dashboard.</p>
                 <div>
                   <label className="text-xs font-medium text-stone-600">Work email</label>
-                  <input type="email" defaultValue="priya@meridianfieldworks.com" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400" />
+                  <input ref={loginEmailRef} type="email" defaultValue="priya@meridianfieldworks.com" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400" />
                 </div>
                 <div>
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-medium text-stone-600">Password</label>
                     <a href="#" className="text-xs text-orange-600 font-medium">Forgot password?</a>
                   </div>
-                  <input type="password" defaultValue="••••••••••" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400" />
+                  <input ref={loginPasswordRef} type="password" defaultValue="demo-password-123" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400" />
                 </div>
-                <button type="submit" className="w-full text-sm font-semibold text-white py-3 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-sm mt-2">
-                  Log in to dashboard
+                <button type="submit" disabled={loading} className="w-full text-sm font-semibold text-white py-3 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-sm mt-2 disabled:opacity-60">
+                  {loading ? "Signing in…" : "Log in to dashboard"}
                 </button>
               </form>
             )}
@@ -608,27 +664,27 @@ function AuthPage({ onEnter, onBack }) {
                 <p className="text-sm text-stone-500 mb-5">Set up FieldProof for your team.</p>
                 <div>
                   <label className="text-xs font-medium text-stone-600">Business name</label>
-                  <input placeholder="Meridian Field Works" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400" />
+                  <input ref={signupBusinessRef} placeholder="Meridian Field Works" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-medium text-stone-600">Full name</label>
-                    <input placeholder="Priya Nair" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400" />
+                    <input ref={signupFullNameRef} placeholder="Priya Nair" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400" />
                   </div>
                   <div>
                     <label className="text-xs font-medium text-stone-600">Primary trade</label>
-                    <select className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 bg-white">
+                    <select ref={signupTradeRef} className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 bg-white">
                       <option>Electrical</option><option>Plumbing</option><option>HVAC</option><option>Solar</option><option>Fire Safety</option><option>General</option>
                     </select>
                   </div>
                 </div>
                 <div>
                   <label className="text-xs font-medium text-stone-600">Work email</label>
-                  <input type="email" placeholder="you@company.com" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400" />
+                  <input ref={signupEmailRef} type="email" placeholder="you@company.com" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400" />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-stone-600">Password</label>
-                  <input type="password" placeholder="Create a password" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400" />
+                  <input ref={signupPasswordRef} type="password" placeholder="Create a password" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400" />
                 </div>
                 <button type="submit" className="w-full text-sm font-semibold text-white py-3 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-sm mt-2 flex items-center justify-center gap-2">
                   Continue to plan <ArrowRight className="h-4 w-4" />
@@ -665,7 +721,7 @@ function AuthPage({ onEnter, onBack }) {
                 </div>
                 <div className="flex gap-3">
                   <button onClick={() => setStep(1)} className="flex-1 text-sm font-semibold text-stone-700 py-3 rounded-xl border border-stone-300">Back</button>
-                  <button onClick={onEnter} className="flex-1 text-sm font-semibold text-white py-3 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 shadow-sm">Create account</button>
+                  <button onClick={handleSignup} disabled={loading} className="flex-1 text-sm font-semibold text-white py-3 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 shadow-sm disabled:opacity-60">{loading ? "Creating…" : "Create account"}</button>
                 </div>
               </div>
             )}
@@ -736,7 +792,13 @@ function Sidebar({ active, setActive, onLogout, mobileOpen, setMobileOpen }) {
   );
 }
 
-function Topbar({ title, setMobileOpen }) {
+function Topbar({ title, setMobileOpen, currentUser }) {
+  const initials = currentUser?.full_name
+    ? currentUser.full_name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()
+    : "?";
+  const firstName = currentUser?.full_name?.split(" ")[0] || "there";
+  const role = currentUser?.role ? (currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)) : "";
+
   return (
     <div className="flex items-center justify-between gap-4 px-5 lg:px-8 py-5 border-b border-stone-100 bg-white">
       <div className="flex items-center gap-3">
@@ -757,10 +819,10 @@ function Topbar({ title, setMobileOpen }) {
           <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-orange-500" />
         </button>
         <div className="flex items-center gap-2 pl-3 border-l border-stone-200">
-          <div className="h-9 w-9 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white text-sm font-semibold">PN</div>
+          <div className="h-9 w-9 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white text-sm font-semibold">{initials}</div>
           <div className="hidden sm:block">
-            <p className="text-sm font-semibold text-stone-800 leading-tight">Hi, Priya 👋</p>
-            <p className="text-xs text-stone-500 leading-tight">Owner</p>
+            <p className="text-sm font-semibold text-stone-800 leading-tight">Hi, {firstName} 👋</p>
+            <p className="text-xs text-stone-500 leading-tight">{role}</p>
           </div>
           <ChevronDown className="h-4 w-4 text-stone-400 hidden sm:block" />
         </div>
@@ -773,13 +835,52 @@ function Topbar({ title, setMobileOpen }) {
    DASHBOARD — OVERVIEW
    ====================================================================== */
 
+// Tiny skeleton placeholder used while data loads
+function Skeleton({ className = "" }) {
+  return <div className={`animate-pulse bg-stone-100 rounded-xl ${className}`} />;
+}
+
 function OverviewView({ onCreateJob }) {
-  const statCards = [
-    { icon: Briefcase, color: "bg-blue-600", label: "Active Jobs Today", value: "16", trend: "+3 vs yesterday", up: true },
-    { icon: FileCheck2, color: "bg-violet-600", label: "Documents Pending Review", value: "7", trend: "-2 vs yesterday", up: false },
-    { icon: AlertTriangle, color: "bg-red-600", label: "Open Compliance Alerts", value: "2", trend: "-1 vs yesterday", up: false },
-    { icon: Gauge, color: "bg-teal-600", label: "AI Auto-Approval Rate", value: "82%", trend: "+4% vs last week", up: true },
-  ];
+  const [summary, setSummary] = useState(null);
+  const [recentJobs, setRecentJobs] = useState([]);
+  const [complianceAlerts, setComplianceAlerts] = useState([]);
+  const [loadingSummary, setLoadingSummary] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      api.getAnalyticsSummary(),
+      api.getJobs(),
+      api.getComplianceEvents(),
+    ]).then(([sum, jobs, events]) => {
+      setSummary(sum);
+      setRecentJobs(jobs.slice(0, 4));
+      setComplianceAlerts(events.filter((e) => !e.resolved).slice(0, 3));
+    }).catch(console.error).finally(() => setLoadingSummary(false));
+  }, []);
+
+  const accuracyPct = summary ? Math.round(summary.avg_documentation_accuracy * 100) : null;
+  // Gauge dash: 283 total arc length, map accuracy to it
+  const gaugeDash = accuracyPct != null ? `${Math.round((accuracyPct / 100) * 283)} 283` : "0 283";
+
+  // Map backend status enum → UI label
+  const STATUS_MAP = {
+    pending: "Awaiting Review", in_progress: "In Progress",
+    compliance_flag: "Compliance Flag", completed: "Completed", scheduled: "Scheduled",
+  };
+  const toLabel = (s) => STATUS_MAP[s] || s;
+
+  // Severity icon mapping for compliance events
+  const SEV_ICON = { critical: AlertTriangle, high: AlertTriangle, medium: ScanLine, low: Sparkles };
+
+  const statCards = summary ? [
+    { icon: Briefcase, color: "bg-blue-600", label: "Active Jobs Today", value: String(summary.active_jobs_today), trend: "live from API", up: true },
+    { icon: FileCheck2, color: "bg-violet-600", label: "Documents Pending Review", value: String(summary.documents_pending_review), trend: "live from API", up: false },
+    { icon: AlertTriangle, color: "bg-red-600", label: "Open Compliance Alerts", value: String(summary.open_compliance_alerts), trend: "live from API", up: false },
+    { icon: Gauge, color: "bg-teal-600", label: "AI Auto-Approval Rate", value: `${Math.round(summary.ai_auto_approval_rate * 100)}%`, trend: "live from API", up: true },
+  ] : [];
+
+  const weeklyDocs = summary?.weekly_docs?.map((p) => ({ day: p.label, docs: p.value })) || [];
+  const totalDocsWeek = weeklyDocs.reduce((a, p) => a + p.docs, 0);
 
   return (
     <div className="space-y-6">
@@ -812,40 +913,50 @@ function OverviewView({ onCreateJob }) {
             <div>
               <p className="text-sm font-semibold text-stone-800 mb-4">Avg documentation accuracy</p>
               <div className="relative flex items-center justify-center">
-                <svg viewBox="0 0 200 120" className="w-full max-w-xs">
-                  <path d="M20,110 A90,90 0 0,1 180,110" fill="none" stroke="#f1efec" strokeWidth="16" strokeLinecap="round" />
-                  <path d="M20,110 A90,90 0 0,1 180,110" fill="none" stroke="url(#gaugeGrad)" strokeWidth="16" strokeLinecap="round" strokeDasharray="220 283" />
-                  <defs>
-                    <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#f43f5e" /><stop offset="45%" stopColor="#f59e0b" /><stop offset="100%" stopColor="#10b981" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-                <div className="absolute flex flex-col items-center top-9">
-                  <span className="fs-display text-3xl font-semibold text-stone-900">96.2%</span>
-                  <span className="text-xs text-stone-500">last 30 days</span>
-                </div>
+                {loadingSummary ? <Skeleton className="h-28 w-full" /> : (
+                  <svg viewBox="0 0 200 120" className="w-full max-w-xs">
+                    <path d="M20,110 A90,90 0 0,1 180,110" fill="none" stroke="#f1efec" strokeWidth="16" strokeLinecap="round" />
+                    <path d="M20,110 A90,90 0 0,1 180,110" fill="none" stroke="url(#gaugeGrad)" strokeWidth="16" strokeLinecap="round" strokeDasharray={gaugeDash} />
+                    <defs>
+                      <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#f43f5e" /><stop offset="45%" stopColor="#f59e0b" /><stop offset="100%" stopColor="#10b981" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                )}
+                {!loadingSummary && (
+                  <div className="absolute flex flex-col items-center top-9">
+                    <span className="fs-display text-3xl font-semibold text-stone-900">{accuracyPct}%</span>
+                    <span className="text-xs text-stone-500">last 30 days</span>
+                  </div>
+                )}
               </div>
             </div>
             <div>
               <p className="text-sm font-semibold text-stone-800 mb-4">Active job status</p>
-              <div className="space-y-3.5">
-                {initialJobs.slice(0, 4).map((j) => (
-                  <div key={j.id} className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-stone-800">{j.tech}</p>
-                      <p className="text-xs text-stone-500">{j.id} · {j.type}</p>
+              {loadingSummary ? (
+                <div className="space-y-3">{[1,2,3,4].map((i) => <Skeleton key={i} className="h-8" />)}</div>
+              ) : (
+                <div className="space-y-3.5">
+                  {recentJobs.map((j) => (
+                    <div key={j.id} className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-stone-800">{j.technician_id || "Unassigned"}</p>
+                        <p className="text-xs text-stone-500">{j.id} · {j.job_type}</p>
+                      </div>
+                      <StatusPill label={toLabel(j.status)} />
                     </div>
-                    <StatusPill label={j.status} />
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </Card>
 
         <div className="lg:col-span-4 grid grid-cols-2 lg:grid-cols-1 gap-4">
-          {statCards.map((s) => (
+          {loadingSummary
+            ? [1,2,3,4].map((i) => <Skeleton key={i} className="h-20" />)
+            : statCards.map((s) => (
             <Card key={s.label} className="p-4 flex items-center gap-3">
               <IconBadge icon={s.icon} className={s.color} />
               <div className="min-w-0">
@@ -865,27 +976,32 @@ function OverviewView({ onCreateJob }) {
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4.5 w-4.5 text-orange-600" />
-              <p className="text-sm font-semibold text-stone-800">AI insights & alerts</p>
+              <p className="text-sm font-semibold text-stone-800">Compliance alerts</p>
             </div>
-            <span className="text-xs text-stone-400">Updated 2 min ago</span>
+            <span className="text-xs text-stone-400">Live from API</span>
           </div>
-          <div className="grid sm:grid-cols-3 gap-4">
-            {alerts.map((a) => (
-              <div key={a.title} className="border border-stone-100 rounded-xl p-4 flex flex-col">
-                <div className="flex items-start justify-between mb-3">
-                  <a.icon className="h-5 w-5 text-stone-400" />
-                  <SeverityTag level={a.level} />
-                </div>
-                <p className="text-sm font-semibold text-stone-800 mb-1">{a.title}</p>
-                <p className="text-xs text-stone-500 leading-relaxed flex-1">{a.desc}</p>
-                <button className="mt-4 text-xs font-semibold text-white bg-stone-900 rounded-full py-2">{a.action}</button>
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center justify-between mt-5 pt-4 border-t border-stone-100 text-xs">
-            <span className="flex items-center gap-1.5 text-stone-500"><span className="h-1.5 w-1.5 rounded-full bg-blue-500" /> AI engine analyzed 147 data points today</span>
-            <button className="font-semibold text-stone-700 flex items-center gap-1">View all alerts <ChevronRight className="h-3.5 w-3.5" /></button>
-          </div>
+          {loadingSummary ? (
+            <div className="grid sm:grid-cols-3 gap-4">{[1,2,3].map((i) => <Skeleton key={i} className="h-32" />)}</div>
+          ) : complianceAlerts.length === 0 ? (
+            <p className="text-sm text-stone-400 py-4">No open compliance alerts. Great work!</p>
+          ) : (
+            <div className="grid sm:grid-cols-3 gap-4">
+              {complianceAlerts.map((a) => {
+                const SevIcon = SEV_ICON[a.severity] || AlertTriangle;
+                return (
+                  <div key={a.id} className="border border-stone-100 rounded-xl p-4 flex flex-col">
+                    <div className="flex items-start justify-between mb-3">
+                      <SevIcon className="h-5 w-5 text-stone-400" />
+                      <SeverityTag level={a.severity.charAt(0).toUpperCase() + a.severity.slice(1)} />
+                    </div>
+                    <p className="text-sm font-semibold text-stone-800 mb-1">{a.message}</p>
+                    <p className="text-xs text-stone-500 leading-relaxed flex-1">Job {a.job_id}</p>
+                    <button className="mt-4 text-xs font-semibold text-white bg-stone-900 rounded-full py-2">Review job</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </Card>
 
         <Card className="lg:col-span-4 p-6 bg-gradient-to-br from-orange-500 to-orange-700 text-white border-0">
@@ -894,20 +1010,22 @@ function OverviewView({ onCreateJob }) {
             <span className="text-xs bg-white/20 px-2.5 py-1 rounded-full">Weekly</span>
           </div>
           <div className="h-40">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={weeklyDocs}>
-                <defs>
-                  <linearGradient id="docsFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#fff" stopOpacity={0.5} /><stop offset="100%" stopColor="#fff" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="day" stroke="#ffffffaa" fontSize={11} tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                <Area type="monotone" dataKey="docs" stroke="#fff" strokeWidth={2} fill="url(#docsFill)" />
-              </AreaChart>
-            </ResponsiveContainer>
+            {loadingSummary ? <div className="h-full flex items-center justify-center text-white/50 text-sm">Loading…</div> : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={weeklyDocs}>
+                  <defs>
+                    <linearGradient id="docsFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#fff" stopOpacity={0.5} /><stop offset="100%" stopColor="#fff" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="day" stroke="#ffffffaa" fontSize={11} tickLine={false} axisLine={false} />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                  <Area type="monotone" dataKey="docs" stroke="#fff" strokeWidth={2} fill="url(#docsFill)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
-          <p className="text-xs text-white/80 mt-2">99 documents generated this week, 18% above target.</p>
+          <p className="text-xs text-white/80 mt-2">{totalDocsWeek} documents generated this week.</p>
         </Card>
       </div>
     </div>
@@ -918,27 +1036,71 @@ function OverviewView({ onCreateJob }) {
    DASHBOARD — JOBS
    ====================================================================== */
 
+// Map backend status strings → UI status label
+const JOB_STATUS_MAP = {
+  pending: "Awaiting Review", in_progress: "In Progress",
+  compliance_flag: "Compliance Flag", completed: "Completed", scheduled: "Scheduled",
+};
+const toJobLabel = (s) => JOB_STATUS_MAP[s] || s;
+
+// Reverse map UI filter labels → backend status values
+const JOB_FILTER_TO_API = {
+  "Awaiting Review": "pending", "In Progress": "in_progress",
+  "Compliance Flag": "compliance_flag", "Completed": "completed", "Scheduled": "scheduled",
+};
+
 function JobsView() {
-  const [jobs, setJobs] = useState(initialJobs);
+  const [jobs, setJobs] = useState([]);
+  const [technicians, setTechnicians] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState("All");
+  const [loading, setLoading] = useState(true);
+  const [submitLoading, setSubmitLoading] = useState(false);
+
+  const loadJobs = useCallback(async (f = "All") => {
+    setLoading(true);
+    try {
+      const statusParam = f === "All" ? null : JOB_FILTER_TO_API[f] || null;
+      const data = await api.getJobs(statusParam);
+      setJobs(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadJobs();
+    api.getTechnicians().then(setTechnicians).catch(console.error);
+  }, [loadJobs]);
 
   const filters = ["All", "Scheduled", "In Progress", "Awaiting Review", "Compliance Flag", "Completed"];
-  const shown = filter === "All" ? jobs : jobs.filter((j) => j.status === filter);
+  const shown = jobs; // already filtered server-side
 
-  const addJob = (e) => {
+  const handleFilterChange = (f) => { setFilter(f); loadJobs(f); };
+
+  const addJob = async (e) => {
     e.preventDefault();
     const form = e.target;
-    const newJob = {
-      id: `JOB-${1043 + jobs.length}`,
-      customer: form.customer.value || "New Customer",
-      type: form.type.value,
-      tech: form.tech.value,
-      status: "Scheduled",
-      when: "Newly created",
-    };
-    setJobs([newJob, ...jobs]);
-    setShowForm(false);
+    setSubmitLoading(true);
+    try {
+      const tech = technicians.find((t) => t.name === form.tech.value);
+      await api.createJob({
+        customer: form.customer.value || "New Customer",
+        site_address: form.site_address?.value || null,
+        job_type: form.type.value,
+        technician_id: tech?.id || null,
+        notes: form.notes?.value || null,
+        scheduled_at: form.scheduled_at?.value || null,
+      });
+      setShowForm(false);
+      loadJobs(filter);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSubmitLoading(false);
+    }
   };
 
   return (
@@ -995,7 +1157,7 @@ function JobsView() {
 
       <div className="flex flex-wrap gap-2">
         {filters.map((f) => (
-          <button key={f} onClick={() => setFilter(f)} className={`text-xs font-semibold px-3.5 py-1.5 rounded-full border ${filter === f ? "bg-stone-900 text-white border-stone-900" : "text-stone-600 border-stone-200 bg-white"}`}>
+          <button key={f} onClick={() => handleFilterChange(f)} className={`text-xs font-semibold px-3.5 py-1.5 rounded-full border ${filter === f ? "bg-stone-900 text-white border-stone-900" : "text-stone-600 border-stone-200 bg-white"}`}>
             {f}
           </button>
         ))}
@@ -1015,16 +1177,20 @@ function JobsView() {
               </tr>
             </thead>
             <tbody>
-              {shown.map((j) => (
+              {loading ? (
+                <tr><td colSpan={6} className="px-6 py-8 text-center text-sm text-stone-400">Loading jobs…</td></tr>
+              ) : shown.length === 0 ? (
+                <tr><td colSpan={6} className="px-6 py-8 text-center text-sm text-stone-400">No jobs found.</td></tr>
+              ) : shown.map((j) => (
                 <tr key={j.id} className="border-b border-stone-50 last:border-0 hover:bg-stone-50">
                   <td className="px-6 py-4">
                     <p className="fs-mono text-xs text-stone-400">{j.id}</p>
-                    <p className="font-medium text-stone-800">{j.type}</p>
+                    <p className="font-medium text-stone-800">{j.job_type}</p>
                   </td>
                   <td className="px-6 py-4 text-stone-600">{j.customer}</td>
-                  <td className="px-6 py-4 text-stone-600">{j.tech}</td>
-                  <td className="px-6 py-4"><StatusPill label={j.status} /></td>
-                  <td className="px-6 py-4 text-stone-500">{j.when}</td>
+                  <td className="px-6 py-4 text-stone-600">{j.technician_id || "—"}</td>
+                  <td className="px-6 py-4"><StatusPill label={toJobLabel(j.status)} /></td>
+                  <td className="px-6 py-4 text-stone-500">{j.scheduled_at ? new Date(j.scheduled_at).toLocaleString() : "—"}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-end gap-2">
                       <button className="p-2 rounded-lg hover:bg-stone-100"><Eye className="h-4 w-4 text-stone-500" /></button>
@@ -1037,7 +1203,7 @@ function JobsView() {
           </table>
         </div>
         <div className="flex items-center justify-between px-6 py-3 text-xs text-stone-500 border-t border-stone-100">
-          <span>Showing {shown.length} of {jobs.length} jobs</span>
+          <span>Showing {shown.length} job{shown.length !== 1 ? "s" : ""}</span>
           <div className="flex gap-2">
             <button className="px-3 py-1.5 rounded-lg border border-stone-200">Previous</button>
             <button className="px-3 py-1.5 rounded-lg border border-stone-200">Next</button>
@@ -1053,7 +1219,30 @@ function JobsView() {
    ====================================================================== */
 
 function TemplatesView() {
+  const [templates, setTemplates] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [fieldMap, setFieldMap] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [fieldMapLoading, setFieldMapLoading] = useState(false);
+
+  useEffect(() => {
+    api.getTemplates().then(setTemplates).catch(console.error).finally(() => setLoading(false));
+  }, []);
+
+  const handleSelect = async (t) => {
+    setSelected(t);
+    setFieldMapLoading(true);
+    try {
+      const detail = await api.getTemplate(t.id);
+      setFieldMap(detail.field_map || []);
+    } catch (err) {
+      console.error(err);
+      setFieldMap([]);
+    } finally {
+      setFieldMapLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1067,18 +1256,20 @@ function TemplatesView() {
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {templates.map((t) => {
+        {loading
+          ? [1,2,3].map((i) => <Skeleton key={i} className="h-44" />)
+          : templates.map((t) => {
           const Icon = TRADE_ICON[t.trade] || FileText;
           return (
-            <Card key={t.name} className="p-5 cursor-pointer hover:border-orange-200" onClick={() => setSelected(t)}>
+            <Card key={t.id} className="p-5 cursor-pointer hover:border-orange-200" onClick={() => handleSelect(t)}>
               <div className="flex items-start justify-between mb-4">
                 <IconBadge icon={Icon} className="bg-gradient-to-br from-orange-500 to-orange-700" />
                 <span className="text-xs font-medium text-stone-400">{t.trade}</span>
               </div>
               <p className="font-semibold text-stone-800 mb-1">{t.name}</p>
-              <p className="text-xs text-stone-500 mb-4">{t.fields} mapped fields · used {t.used} times</p>
+              <p className="text-xs text-stone-500 mb-4">{t.field_map?.length || 0} mapped fields · used {t.times_used} times</p>
               <div className="flex items-center justify-between text-xs text-stone-400 pt-3 border-t border-stone-100">
-                <span>Edited {t.edited}</span>
+                <span>Updated {new Date(t.updated_at).toLocaleDateString()}</span>
                 <span className="font-semibold text-orange-600 flex items-center gap-1">Edit <ChevronRight className="h-3.5 w-3.5" /></span>
               </div>
             </Card>
@@ -1101,13 +1292,17 @@ function TemplatesView() {
             <button onClick={() => setSelected(null)}><X className="h-5 w-5 text-stone-400" /></button>
           </div>
           <div className="space-y-2">
-            {templateFieldMap.map((f) => (
+            {fieldMapLoading ? (
+              <div className="space-y-2">{[1,2,3].map((i) => <Skeleton key={i} className="h-10" />)}</div>
+            ) : fieldMap.length === 0 ? (
+              <p className="text-sm text-stone-400">No field mappings yet for this template.</p>
+            ) : fieldMap.map((f) => (
               <div key={f.field} className="flex items-center justify-between border-b border-stone-50 last:border-0 py-2.5">
                 <div>
                   <p className="text-sm font-medium text-stone-800">{f.field}</p>
                   <p className="text-xs text-stone-400">Source: {f.source}</p>
                 </div>
-                <ConfidenceBar value={f.confidence} />
+                <ConfidenceBar value={Math.round(f.confidence * 100)} />
               </div>
             ))}
           </div>
@@ -1121,16 +1316,43 @@ function TemplatesView() {
    DASHBOARD — DOCUMENTS
    ====================================================================== */
 
+// Map backend doc status → UI label
+const DOC_STATUS_MAP = {
+  pending_review: "Pending Review", approved: "Approved", sent: "Sent", draft: "Draft",
+};
+const toDocLabel = (s) => DOC_STATUS_MAP[s] || s;
+
+const DOC_FILTER_TO_API = {
+  "Pending Review": "pending_review", "Approved": "approved", "Sent": "sent", "Draft": "draft",
+};
+
 function DocumentsView() {
-  const [docs, setDocs] = useState(documents);
+  const [docs, setDocs] = useState([]);
   const [reviewing, setReviewing] = useState(null);
   const [tab, setTab] = useState("All");
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const tabs = ["All", "Pending Review", "Approved", "Sent"];
-  const shown = tab === "All" ? docs : docs.filter((d) => d.status === tab);
 
-  const approve = () => {
-    setDocs(docs.map((d) => (d.name === reviewing.name && d.job === reviewing.job ? { ...d, status: "Approved" } : d)));
-    setReviewing(null);
+  useEffect(() => {
+    api.getDocuments().then(setDocs).catch(console.error).finally(() => setLoading(false));
+  }, []);
+
+  const shown = tab === "All" ? docs : docs.filter((d) => toDocLabel(d.status) === tab);
+
+  const handleReview = async (action) => {
+    if (!reviewing) return;
+    setActionLoading(true);
+    try {
+      await api.reviewDocument(reviewing.id, action);
+      // Optimistically update local state
+      setDocs(docs.map((d) => d.id === reviewing.id ? { ...d, status: action === "approve" ? "approved" : "pending_review" } : d));
+      setReviewing(null);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   return (
@@ -1162,15 +1384,19 @@ function DocumentsView() {
                 </tr>
               </thead>
               <tbody>
-                {shown.map((d) => (
-                  <tr key={d.name + d.job} className="border-b border-stone-50 last:border-0 hover:bg-stone-50">
+                {loading ? (
+                  <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-stone-400">Loading documents…</td></tr>
+                ) : shown.length === 0 ? (
+                  <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-stone-400">No documents found.</td></tr>
+                ) : shown.map((d) => (
+                  <tr key={d.id} className="border-b border-stone-50 last:border-0 hover:bg-stone-50">
                     <td className="px-6 py-4">
                       <p className="font-medium text-stone-800">{d.name}</p>
-                      <p className="text-xs text-stone-400">{d.job}</p>
+                      <p className="text-xs text-stone-400">Job {d.job_id}</p>
                     </td>
-                    <td className="px-6 py-4 text-stone-600">{d.tech}</td>
-                    <td className="px-6 py-4"><ConfidenceBar value={d.confidence} /></td>
-                    <td className="px-6 py-4"><StatusPill label={d.status} /></td>
+                    <td className="px-6 py-4 text-stone-600">—</td>
+                    <td className="px-6 py-4"><ConfidenceBar value={Math.round(d.overall_confidence * 100)} /></td>
+                    <td className="px-6 py-4"><StatusPill label={toDocLabel(d.status)} /></td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
                         <button onClick={() => setReviewing(d)} className="text-xs font-semibold text-stone-700 border border-stone-200 rounded-full px-3 py-1.5">Review</button>
@@ -1190,12 +1416,15 @@ function DocumentsView() {
               <p className="text-sm font-semibold text-stone-800">{reviewing.name}</p>
               <button onClick={() => setReviewing(null)}><X className="h-5 w-5 text-stone-400" /></button>
             </div>
-            <p className="text-xs text-stone-500 mb-4">{reviewing.job} · {reviewing.tech}</p>
+            <p className="text-xs text-stone-500 mb-4">Job {reviewing.job_id}</p>
             <div className="space-y-2 mb-5">
-              {templateFieldMap.map((f) => (
+              {(reviewing.extracted_fields || []).map((f) => (
                 <div key={f.field} className="flex items-center justify-between border-b border-stone-50 last:border-0 py-2">
-                  <p className="text-sm text-stone-700">{f.field}</p>
-                  <ConfidenceBar value={f.confidence} />
+                  <div>
+                    <p className="text-sm text-stone-700">{f.field}</p>
+                    {f.value && <p className="text-xs text-stone-400">{f.value}</p>}
+                  </div>
+                  <ConfidenceBar value={Math.round(f.confidence * 100)} />
                 </div>
               ))}
             </div>
@@ -1207,9 +1436,9 @@ function DocumentsView() {
               ))}
             </div>
             <div className="flex gap-3">
-              <button className="flex-1 text-sm font-semibold text-stone-700 border border-stone-200 rounded-full py-2.5">Request changes</button>
-              <button onClick={approve} className="flex-1 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-full py-2.5 flex items-center justify-center gap-2">
-                <Check className="h-4 w-4" /> Approve & send
+              <button onClick={() => handleReview("request_changes")} disabled={actionLoading} className="flex-1 text-sm font-semibold text-stone-700 border border-stone-200 rounded-full py-2.5 disabled:opacity-60">Request changes</button>
+              <button onClick={() => handleReview("approve")} disabled={actionLoading} className="flex-1 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-full py-2.5 flex items-center justify-center gap-2 disabled:opacity-60">
+                <Check className="h-4 w-4" /> {actionLoading ? "Saving…" : "Approve & send"}
               </button>
             </div>
           </Card>
@@ -1223,7 +1452,21 @@ function DocumentsView() {
    DASHBOARD — TECHNICIANS
    ====================================================================== */
 
+// Avatar colour palette — cycles through for technicians without a set colour
+const AVATAR_COLORS = ["bg-blue-600","bg-violet-600","bg-teal-600","bg-amber-600","bg-red-600","bg-emerald-600"];
+
 function TechniciansView() {
+  const [technicians, setTechnicians] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.getTechnicians().then(setTechnicians).catch(console.error).finally(() => setLoading(false));
+  }, []);
+
+  // Map backend status enum → UI label
+  const TECH_STATUS_MAP = { active: "On Site", available: "Available", off_duty: "Off Duty", on_site: "On Site" };
+  const toTechLabel = (s) => TECH_STATUS_MAP[s] || s;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1236,31 +1479,36 @@ function TechniciansView() {
         </button>
       </div>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {technicians.map((t) => {
+        {loading
+          ? [1,2,3,4,5,6].map((i) => <Skeleton key={i} className="h-44" />)
+          : technicians.map((t, idx) => {
           const Icon = TRADE_ICON[t.trade] || Building2;
+          const initials = t.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+          const color = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+          const statusLabel = toTechLabel(t.status);
           return (
-            <Card key={t.name} className="p-5">
+            <Card key={t.id} className="p-5">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className={`h-11 w-11 rounded-full ${t.color} flex items-center justify-center text-white text-sm font-semibold`}>{t.initials}</div>
+                  <div className={`h-11 w-11 rounded-full ${color} flex items-center justify-center text-white text-sm font-semibold`}>{initials}</div>
                   <div>
                     <p className="font-semibold text-stone-800">{t.name}</p>
                     <p className="text-xs text-stone-500 flex items-center gap-1"><Icon className="h-3 w-3" /> {t.trade}</p>
                   </div>
                 </div>
-                <StatusPill label={t.status} />
+                <StatusPill label={statusLabel} />
               </div>
               <div className="grid grid-cols-3 gap-2 text-center border-t border-stone-100 pt-4">
                 <div>
-                  <p className="fs-display font-semibold text-stone-900">{t.activeJobs}</p>
+                  <p className="fs-display font-semibold text-stone-900">{t.active_jobs}</p>
                   <p className="text-xs text-stone-500">Active jobs</p>
                 </div>
                 <div>
-                  <p className="fs-display font-semibold text-stone-900">{t.docsWeek}</p>
+                  <p className="fs-display font-semibold text-stone-900">{t.docs_this_week}</p>
                   <p className="text-xs text-stone-500">Docs / week</p>
                 </div>
                 <div>
-                  <p className="fs-display font-semibold text-stone-900">{t.compliance}%</p>
+                  <p className="fs-display font-semibold text-stone-900">{t.compliance_pct}%</p>
                   <p className="text-xs text-stone-500">Compliance</p>
                 </div>
               </div>
@@ -1277,6 +1525,25 @@ function TechniciansView() {
    ====================================================================== */
 
 function ComplianceView() {
+  const [rules, setRules] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [complianceTrend, setComplianceTrend] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      api.getComplianceRules(),
+      api.getComplianceEvents(),
+      api.getAnalyticsSummary(),
+    ]).then(([r, e, sum]) => {
+      setRules(r);
+      setEvents(e);
+      setComplianceTrend(sum.compliance_trend?.map((p) => ({ week: p.label, rate: p.value })) || []);
+    }).catch(console.error).finally(() => setLoading(false));
+  }, []);
+
+  const SEV_COLOR = { critical: "text-red-500", high: "text-red-500", medium: "text-amber-500", low: "text-sky-500" };
+
   return (
     <div className="space-y-6">
       <div>
@@ -1286,10 +1553,12 @@ function ComplianceView() {
 
       <div className="grid lg:grid-cols-12 gap-6">
         <div className="lg:col-span-7 grid sm:grid-cols-2 gap-5">
-          {complianceRules.map((r) => {
+          {loading
+            ? [1,2,3].map((i) => <Skeleton key={i} className="h-40" />)
+            : rules.map((r) => {
             const Icon = TRADE_ICON[r.trade] || Building2;
             return (
-              <Card key={r.trade} className="p-5">
+              <Card key={r.id} className="p-5">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <IconBadge icon={Icon} className="bg-gradient-to-br from-orange-500 to-orange-700" />
@@ -1298,7 +1567,7 @@ function ComplianceView() {
                   <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full">Active</span>
                 </div>
                 <ul className="space-y-2">
-                  {r.fields.map((f) => (
+                  {(r.required_fields || []).map((f) => (
                     <li key={f} className="flex items-center gap-2 text-sm text-stone-600">
                       <CircleCheck className="h-4 w-4 text-emerald-500 shrink-0" /> {f}
                     </li>
@@ -1330,17 +1599,23 @@ function ComplianceView() {
           </Card>
           <Card className="p-6">
             <p className="text-sm font-semibold text-stone-800 mb-4">Recent compliance alerts</p>
-            <div className="space-y-3">
-              {complianceLog.map((l, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <CircleAlert className={`h-4 w-4 mt-0.5 shrink-0 ${l.level === "High" ? "text-red-500" : l.level === "Medium" ? "text-amber-500" : "text-sky-500"}`} />
-                  <div className="flex-1">
-                    <p className="text-sm text-stone-700"><span className="font-medium">{l.job}</span> — {l.msg}</p>
-                    <p className="text-xs text-stone-400">{l.time}</p>
+            {loading ? (
+              <div className="space-y-2">{[1,2,3].map((i) => <Skeleton key={i} className="h-10" />)}</div>
+            ) : events.length === 0 ? (
+              <p className="text-sm text-stone-400">No alerts logged yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {events.slice(0, 6).map((e) => (
+                  <div key={e.id} className="flex items-start gap-3">
+                    <CircleAlert className={`h-4 w-4 mt-0.5 shrink-0 ${SEV_COLOR[e.severity] || "text-stone-400"}`} />
+                    <div className="flex-1">
+                      <p className="text-sm text-stone-700"><span className="font-medium">Job {e.job_id}</span> — {e.message}</p>
+                      <p className="text-xs text-stone-400">{new Date(e.created_at).toLocaleString()}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </Card>
         </div>
       </div>
@@ -1353,6 +1628,28 @@ function ComplianceView() {
    ====================================================================== */
 
 function AnalyticsView() {
+  const [summary, setSummary] = useState(null);
+  const [techList, setTechList] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([api.getAnalyticsSummary(), api.getTechnicians()])
+      .then(([sum, techs]) => { setSummary(sum); setTechList(techs); })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const docTimeTrend = summary?.documentation_time_trend?.map((p) => ({ week: p.label, mins: p.value })) || [];
+  const accuracyTrend = summary?.accuracy_trend?.map((p) => ({ week: p.label, pct: p.value })) || [];
+  const complianceTrend = summary?.compliance_trend?.map((p) => ({ week: p.label, rate: p.value })) || [];
+  const techBarData = techList.map((t) => ({
+    initials: t.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase(),
+    name: t.name,
+    docsWeek: t.docs_this_week,
+  }));
+
+  if (loading) return <div className="grid lg:grid-cols-2 gap-6">{[1,2,3,4].map((i) => <Skeleton key={i} className="h-72" />)}</div>;
+
   return (
     <div className="space-y-6">
       <div>
@@ -1364,7 +1661,7 @@ function AnalyticsView() {
           <p className="text-sm font-semibold text-stone-800 mb-4">Documents per technician this week</p>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={technicians}>
+              <BarChart data={techBarData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1efec" vertical={false} />
                 <XAxis dataKey="initials" fontSize={11} tickLine={false} axisLine={false} stroke="#a8a29e" />
                 <YAxis fontSize={11} tickLine={false} axisLine={false} stroke="#a8a29e" />
@@ -1523,9 +1820,34 @@ const VIEW_TITLES = {
   technicians: "Technicians", compliance: "Compliance", analytics: "Analytics", settings: "Settings",
 };
 
-function Dashboard({ onLogout }) {
+function Dashboard({ onLogout, currentUser }) {
   const [active, setActive] = useState("overview");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [wsToast, setWsToast] = useState(null);
+  const wsRef = useRef(null);
+
+  // Connect WebSocket on mount, disconnect on unmount / logout
+  useEffect(() => {
+    const ws = api.connectWebSocket((data) => {
+      if (data.event === "job_created") {
+        setWsToast("New job created — refresh Jobs tab to see it.");
+      } else if (data.event === "job_updated") {
+        setWsToast(`Job ${data.job_id} updated: ${data.status}`);
+      } else if (data.event === "document_reviewed") {
+        setWsToast(`Document ${data.document_id} was reviewed.`);
+      }
+      // Auto-dismiss toast after 4 seconds
+      setTimeout(() => setWsToast(null), 4000);
+    });
+    wsRef.current = ws;
+    return () => { if (wsRef.current) wsRef.current.close(); };
+  }, []);
+
+  const handleLogout = () => {
+    if (wsRef.current) wsRef.current.close();
+    api.clearToken();
+    onLogout();
+  };
 
   const view = {
     overview: <OverviewView onCreateJob={() => setActive("jobs")} />,
@@ -1541,11 +1863,19 @@ function Dashboard({ onLogout }) {
   return (
     <div className="fs-root min-h-screen bg-stone-100 flex">
       <GlobalStyle />
-      <Sidebar active={active} setActive={setActive} onLogout={onLogout} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
+      <Sidebar active={active} setActive={setActive} onLogout={handleLogout} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
       <div className="flex-1 min-w-0 flex flex-col">
-        <Topbar title={VIEW_TITLES[active]} setMobileOpen={setMobileOpen} />
+        <Topbar title={VIEW_TITLES[active]} setMobileOpen={setMobileOpen} currentUser={currentUser} />
         <main className="flex-1 p-5 lg:p-8 overflow-y-auto fs-scroll">{view}</main>
       </div>
+      {/* WebSocket live-update toast */}
+      {wsToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-stone-900 text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 fs-card-shadow">
+          <span className="h-2 w-2 rounded-full bg-orange-400 shrink-0" />
+          {wsToast}
+          <button onClick={() => setWsToast(null)} className="text-stone-400 hover:text-white ml-2"><X className="h-4 w-4" /></button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1556,12 +1886,29 @@ function Dashboard({ onLogout }) {
 
 export default function App() {
   const [screen, setScreen] = useState("landing"); // landing | auth | dashboard
+  const [currentUser, setCurrentUser] = useState(null);
+
+  const handleEnterDashboard = async () => {
+    try {
+      const user = await api.getMe();
+      setCurrentUser(user);
+    } catch (_) {
+      // non-fatal — dashboard still works without user info
+    }
+    setScreen("dashboard");
+  };
+
+  const handleLogout = () => {
+    api.clearToken();
+    setCurrentUser(null);
+    setScreen("landing");
+  };
 
   if (screen === "auth") {
-    return <AuthPage onEnter={() => setScreen("dashboard")} onBack={() => setScreen("landing")} />;
+    return <AuthPage onEnter={handleEnterDashboard} onBack={() => setScreen("landing")} />;
   }
   if (screen === "dashboard") {
-    return <Dashboard onLogout={() => setScreen("landing")} />;
+    return <Dashboard onLogout={handleLogout} currentUser={currentUser} />;
   }
   return <LandingPage onLogin={() => setScreen("auth")} onSignup={() => setScreen("auth")} />;
 }
