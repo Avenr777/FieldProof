@@ -136,9 +136,16 @@ class Template(Base):
     business_id = Column(String, ForeignKey("businesses.id"))
     name = Column(String, nullable=False)
     trade = Column(String, nullable=False)
-    field_map = Column(JSON, default=list)  # [{field, source, confidence}]
+    field_map = Column(JSON, default=list)  # [{field, source, confidence}] - dashboard summary view
     times_used = Column(Integer, default=0)
     source_file_url = Column(String, nullable=True)
+    # Full output of docx_extractor.extract_docx() for .docx uploads: the
+    # "elements" tree + flat "fields" list (with locators) that
+    # docx_writer.fill_docx() needs to write values back in. None for
+    # non-docx uploads (those only get the simplified field_map above,
+    # via the ai_pipeline stub, since there's no write-back path for them
+    # yet).
+    extraction = Column(JSON, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow)
 
     business = relationship("Business", back_populates="templates")
@@ -177,4 +184,17 @@ class ComplianceEvent(Base):
     message = Column(String, nullable=False)
     severity = Column(Enum(Severity), default=Severity.medium)
     resolved = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class MetricSnapshot(Base):
+    __tablename__ = "metric_snapshots"
+
+    id = Column(String, primary_key=True, default=lambda: gen_id("MET"))
+    business_id = Column(String, ForeignKey("businesses.id"), nullable=False, index=True)
+    snapshot_date = Column(DateTime, nullable=False, index=True)
+    avg_documentation_time_mins = Column(Float, default=0.0)
+    avg_accuracy_pct = Column(Float, default=0.0)
+    compliance_rate_pct = Column(Float, default=100.0)
+    total_jobs_completed = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)

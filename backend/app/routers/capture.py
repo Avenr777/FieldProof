@@ -42,7 +42,11 @@ async def create_capture(
 
     # Deferred import avoids requiring a running Redis instance just to
     # import the FastAPI app (e.g. when running tests without a worker).
-    from app.tasks import process_capture
-    process_capture.delay(capture.id)
+    try:
+        from app.tasks import process_capture
+        process_capture.delay(capture.id)
+    except Exception as e:
+        import logging
+        logging.getLogger("fieldproof.capture").warning(f"Could not enqueue Celery task (Redis offline?): {e}")
 
     return schemas.CaptureCreated(id=capture.id, job_id=job_id, kind=kind)

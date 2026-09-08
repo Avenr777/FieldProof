@@ -40,8 +40,34 @@ def run():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
-        if db.query(models.Business).first():
-            print("Database already seeded, skipping.")
+        existing_biz = db.query(models.Business).first()
+        if existing_biz:
+            # Check if technician user exists
+            if not db.query(models.User).filter(models.User.email == "marcus@meridianfieldworks.com").first():
+                db.add(models.User(
+                    business_id=existing_biz.id,
+                    full_name="Marcus Vance",
+                    email="marcus@meridianfieldworks.com",
+                    hashed_password=hash_password("demo-password-123"),
+                    role=models.Role.technician,
+                ))
+                print("Added demo technician user: marcus@meridianfieldworks.com / demo-password-123")
+
+            # Check if snapshots exist
+            if not db.query(models.MetricSnapshot).filter(models.MetricSnapshot.business_id == existing_biz.id).first():
+                for day_offset in range(13, -1, -1):
+                    snap_date = datetime.utcnow() - timedelta(days=day_offset)
+                    db.add(models.MetricSnapshot(
+                        business_id=existing_biz.id,
+                        snapshot_date=snap_date,
+                        avg_documentation_time_mins=round(4.6 - (13 - day_offset) * 0.16, 1),
+                        avg_accuracy_pct=round(91.2 + (13 - day_offset) * 0.45, 1),
+                        compliance_rate_pct=round(94.0 + (13 - day_offset) * 0.35, 1),
+                        total_jobs_completed=12 + (13 - day_offset),
+                    ))
+                print("Seeded 14 historical metric snapshots.")
+            db.commit()
+            print("Database ready.")
             return
 
         business = models.Business(
@@ -107,8 +133,32 @@ def run():
             status=models.DocStatus.pending_review,
         ))
 
+        # Technician user login for testing technician role
+        tech_user = models.User(
+            business_id=business.id,
+            full_name="Marcus Vance",
+            email="marcus@meridianfieldworks.com",
+            hashed_password=auth.hash_password("demo-password-123"),
+            role=models.Role.technician,
+        )
+        db.add(tech_user)
+
+        # Seed 14 days of metric snapshots for smooth trend charts
+        for day_offset in range(13, -1, -1):
+            snap_date = datetime.utcnow() - timedelta(days=day_offset)
+            db.add(models.MetricSnapshot(
+                business_id=business.id,
+                snapshot_date=snap_date,
+                avg_documentation_time_mins=round(4.6 - (13 - day_offset) * 0.16, 1),
+                avg_accuracy_pct=round(91.2 + (13 - day_offset) * 0.45, 1),
+                compliance_rate_pct=round(94.0 + (13 - day_offset) * 0.35, 1),
+                total_jobs_completed=12 + (13 - day_offset),
+            ))
+
         db.commit()
-        print(f"Seeded business '{business.name}'. Login with priya@meridianfieldworks.com / demo-password-123")
+        print(f"Seeded business '{business.name}'.")
+        print("  Owner login: priya@meridianfieldworks.com / demo-password-123")
+        print("  Technician login: marcus@meridianfieldworks.com / demo-password-123")
     finally:
         db.close()
 

@@ -41,7 +41,7 @@ async def review_document(
     doc_id: str,
     payload: schemas.DocumentReviewAction,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
+    current_user: models.User = Depends(auth.require_owner_or_admin),
 ):
     doc = _get_owned_doc(db, doc_id, current_user)
 

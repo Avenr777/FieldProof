@@ -33,5 +33,12 @@ class Settings(BaseSettings):
     # CORS - the Vite dev server origin by default
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
+    # AI Model Providers
+    openai_api_key: str | None = None
+    openai_base_url: str = "https://api.openai.com/v1"
+    ai_model_chat: str = "gpt-4o-mini"
+    ai_model_vision: str = "gpt-4o-mini"
+    ai_model_whisper: str = "whisper-1"
+
 
 settings = Settings()

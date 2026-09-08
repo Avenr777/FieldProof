@@ -28,3 +28,17 @@ async def save_upload(file: UploadFile, prefix: str = "misc") -> str:
 
     # In production this would be an S3/Blob URL instead of a local path
     return f"/{path}"
+
+
+def resolve_local_path(file_url: str) -> str:
+    """
+    Turns a URL previously returned by save_upload() back into a real
+    filesystem path that libraries like python-docx can open directly.
+
+    Works as-is only because save_upload() currently stores locally and
+    returns f"/{path}" — this function just strips the leading "/". Once
+    save_upload() is swapped for a real S3/Blob client, this needs to
+    become "download the object to a temp file and return that path"
+    instead, since docx_extractor/docx_writer need a local file handle.
+    """
+    return file_url.lstrip("/")

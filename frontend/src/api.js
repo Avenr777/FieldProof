@@ -15,6 +15,7 @@
  */
 
 const BASE_URL = "http://localhost:8000";
+export const API_BASE_URL = BASE_URL;
 
 // ─── In-memory token store ────────────────────────────────────────────────────
 let _token = null;
@@ -163,17 +164,96 @@ export async function createTechnician(payload) {
 /**
  * List all document templates for the current business.
  * Returns TemplateOut[]: { id, name, trade, field_map, times_used, updated_at }
+ *
+ * field_map here is a SUMMARY view — [{ field, source, confidence }] — meant
+ * for the template gallery card. For the full extracted field list (with
+ * field_id, field_type, and locator, needed to actually fill the template),
+ * use getTemplateFields() below.
  */
 export async function getTemplates() {
   return apiFetch("/templates");
 }
 
 /**
- * Get a single template by ID (includes its full field_map).
+ * Get a single template by ID (includes its summary field_map).
  * @param {string} templateId
  */
 export async function getTemplate(templateId) {
   return apiFetch(`/templates/${templateId}`);
+}
+
+/**
+ * Upload an existing company form (.docx) as a new template. The backend
+ * runs docx_extractor over it (blank/checkbox detection, label inference,
+ * table field mapping) and returns the created TemplateOut, including a
+ * summary field_map. This is what powers the "Upload a PDF or Word form"
+ * card in TemplatesView.
+ *
+ * @param {{ name: string, trade: string, file: File }} params
+ */
+export async function uploadTemplate({ name, trade, file }) {
+  const form = new FormData();
+  form.append("name", name);
+  form.append("trade", trade);
+  form.append("file", file);
+  return apiFetch("/templates/upload", { method: "POST", body: form });
+}
+
+/**
+ * Fetch the FULL extracted field list for a template — every blank,
+ * checkbox, and empty table cell docx_extractor found, each with a
+ * field_id, inferred label, field_type ("text" | "date" | "checkbox" |
+ * "multiline_text" | "number" | ...), and its locator in the document.
+ *
+ * This is what the admin review screen renders as an editable form: one
+ * input per field_id, pre-filled with nothing, type-appropriate (date
+ * picker for "date", checkbox for "checkbox", textarea for
+ * "multiline_text", plain input otherwise).
+ *
+ * Throws (404) if the template wasn't a .docx upload — non-docx templates
+ * only have the summary field_map from getTemplates(), with no write-back
+ * path yet.
+ *
+ * @param {string} templateId
+ * @returns {Promise<{ document: object, elements: object[], fields: object[], images: object[], statistics: object }>}
+ */
+export async function getTemplateFields(templateId) {
+  return apiFetch(`/templates/${templateId}/fields`);
+}
+
+/**
+ * Update an extracted field's label or field_type on a template.
+ * @param {string} templateId
+ * @param {string} fieldId
+ * @param {{ label?: string, field_type?: string }} payload
+ * @returns {Promise<{ field: object, extraction: object }>}
+ */
+export async function updateTemplateField(templateId, fieldId, payload) {
+  return apiFetch(`/templates/${templateId}/fields/${fieldId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Fill a template with admin-supplied values and generate a completed
+ * .docx document for the given job. `values` keys are field_id strings
+ * from getTemplateFields() (e.g. "p1-b0", "t0-r1-c1-p0"); most values are
+ * strings, checkbox-type fields take a boolean.
+ *
+ * Returns a DocumentOut — the same shape as items in getDocuments() — so
+ * the newly generated document shows up in DocumentsView same as an
+ * AI-drafted one, status "Pending Review".
+ *
+ * @param {string} templateId
+ * @param {string} jobId
+ * @param {Record<string, string|boolean>} values
+ */
+export async function fillTemplate(templateId, jobId, values) {
+  return apiFetch(`/templates/${templateId}/fill`, {
+    method: "POST",
+    body: JSON.stringify({ job_id: jobId, values }),
+  });
 }
 
 // ─── Documents ───────────────────────────────────────────────────────────────
@@ -219,7 +299,7 @@ export async function getComplianceEvents() {
 
 /**
  * Get the overall compliance rate for the business.
- * Returns { rate: number }
+ * Returns { total_jobs, flagged_jobs, compliance_rate }
  */
 export async function getComplianceRate() {
   return apiFetch("/compliance/rate");
@@ -251,7 +331,8 @@ export async function uploadCapture(jobId, kind, file) {
   const form = new FormData();
   form.append("job_id", jobId);
   form.append("kind", kind);
-  form.append("file", file);
+  const fileName = file.name || (kind === "voice" ? "recording.webm" : "photo.jpg");
+  form.append("file", file, fileName);
   return apiFetch("/capture", { method: "POST", body: form });
 }
 
@@ -264,7 +345,7 @@ export async function uploadCapture(jobId, kind, file) {
  * Events pushed by the server:
  *   { event: "job_created",      job_id: string }
  *   { event: "job_updated",      job_id: string, status: string }
- *   { event: "document_reviewed", document_id: string }
+ *   { event: "document_reviewed", document_id: string, status: string }
  *
  * @param {(data: object) => void} onMessage - called with parsed JSON on each message
  * @param {() => void} [onClose] - called when the socket closes

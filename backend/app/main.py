@@ -1,5 +1,8 @@
+import os
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import Base, engine
@@ -10,6 +13,8 @@ from app.routers import auth, jobs, technicians, templates, documents, complianc
 # use Alembic migrations once this is backed by Postgres in production).
 Base.metadata.create_all(bind=engine)
 
+os.makedirs("uploads", exist_ok=True)
+
 app = FastAPI(title=settings.app_name)
 
 app.add_middleware(
@@ -19,6 +24,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serves everything storage.save_upload() writes (template source files,
+# generated filled documents) at the same path returned as file_url, e.g.
+# a Document.file_url of "/uploads/documents/JOB-x_TPL-y.docx" is fetchable
+# at http://localhost:8000/uploads/documents/JOB-x_TPL-y.docx. Swap this out
+# entirely once storage.py is backed by S3/Blob (files would be fetched
+# from the cloud provider's own URL instead).
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 app.include_router(auth.router)
 app.include_router(jobs.router)
@@ -52,4 +65,3 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.receive_text()  # keep the connection open
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-

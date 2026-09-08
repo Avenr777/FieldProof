@@ -41,7 +41,8 @@ class TechnicianBase(BaseModel):
 
 
 class TechnicianCreate(TechnicianBase):
-    pass
+    email: Optional[EmailStr] = None
+    password: Optional[str] = None
 
 
 class TechnicianOut(TechnicianBase):
@@ -91,6 +92,22 @@ class TemplateFieldMapping(BaseModel):
     confidence: float
 
 
+class TemplateFieldUpdate(BaseModel):
+    label: Optional[str] = None
+    field_type: Optional[str] = None
+
+
+class TemplateFillRequest(BaseModel):
+    """
+    Body for POST /templates/{id}/fill. `values` is {field_id: value} where
+    field_id comes from the template's extracted "fields" list (see
+    GET /templates/{id}/fields). Most fields take a string; checkbox_option
+    fields take a truthy/falsy value (bool, "yes"/"no", 1/0, etc.).
+    """
+    job_id: str
+    values: dict[str, Any]
+
+
 class TemplateOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
@@ -118,6 +135,7 @@ class DocumentOut(BaseModel):
     extracted_fields: list[DocumentField]
     overall_confidence: float
     status: str
+    file_url: Optional[str] = None
     created_at: datetime
 
 

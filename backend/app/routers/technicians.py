@@ -47,8 +47,21 @@ def list_technicians(
 def invite_technician(
     payload: schemas.TechnicianCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
+    current_user: models.User = Depends(auth.require_owner_or_admin),
 ):
+    if payload.email:
+        existing = db.query(models.User).filter(models.User.email == payload.email).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="A user with this email already exists")
+        tech_user = models.User(
+            business_id=current_user.business_id,
+            full_name=payload.name,
+            email=payload.email,
+            hashed_password=auth.hash_password(payload.password or "technician123"),
+            role=models.Role.technician,
+        )
+        db.add(tech_user)
+
     tech = models.Technician(
         business_id=current_user.business_id,
         name=payload.name,

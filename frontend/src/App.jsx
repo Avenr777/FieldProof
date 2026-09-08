@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import * as api from "./api";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   LayoutGrid, Briefcase, FileText, FileCheck2, Users, ShieldCheck, BarChart3, Settings, LifeBuoy,
   Search, Bell, ChevronDown, ChevronRight, Mic, Camera, ScanLine, Plus, Upload, Download, Send,
@@ -7,12 +6,13 @@ import {
   MoreHorizontal, MapPin, Clock, Zap, Building2, Flame, Wrench, Sun, Radio, ClipboardCheck,
   CircleCheck, CircleAlert, Eye, UserPlus, CreditCard, Puzzle, ToggleLeft, Sparkles, Gauge,
   ListChecks, CalendarDays, Filter, ArrowUpRight, ArrowDownRight, HardHat, Droplets, Thermometer,
-  PhoneCall, Quote,
+  PhoneCall, Quote, Loader2, FileUp, Pencil, Square, Volume2, Wifi, WifiOff, Trash2,
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import * as api from "./api";
 
 /* ======================================================================
    GLOBAL STYLE
@@ -33,11 +33,14 @@ const GlobalStyle = () => (
       color: transparent;
     }
     .fs-card-shadow { box-shadow: 0 1px 2px rgba(28,23,18,0.04), 0 8px 24px rgba(28,23,18,0.06); }
+    .fs-spin { animation: fs-spin 0.8s linear infinite; }
+    @keyframes fs-spin { to { transform: rotate(360deg); } }
   `}</style>
 );
 
 /* ======================================================================
-   MOCK DATA
+   STATIC REFERENCE DATA (not backed by the API — decorative/marketing
+   content, or lookup tables keyed by strings the API already returns)
    ====================================================================== */
 
 const TRADE_ICON = {
@@ -48,93 +51,6 @@ const TRADE_ICON = {
   Solar: Sun,
   General: Building2,
 };
-
-const technicians = [
-  { name: "Marcus Reed", trade: "Electrical", status: "On Site", activeJobs: 3, docsWeek: 11, compliance: 98, initials: "MR", color: "bg-blue-600" },
-  { name: "Priya Nair", trade: "HVAC", status: "Available", activeJobs: 1, docsWeek: 8, compliance: 95, initials: "PN", color: "bg-violet-600" },
-  { name: "Diego Alvarez", trade: "Plumbing", status: "On Site", activeJobs: 2, docsWeek: 9, compliance: 91, initials: "DA", color: "bg-teal-600" },
-  { name: "Sarah Kim", trade: "Solar", status: "Off Duty", activeJobs: 0, docsWeek: 6, compliance: 99, initials: "SK", color: "bg-amber-600" },
-  { name: "Tom Whitfield", trade: "Fire Safety", status: "On Site", activeJobs: 4, docsWeek: 14, compliance: 88, initials: "TW", color: "bg-red-600" },
-  { name: "Aisha Bello", trade: "Electrical", status: "Available", activeJobs: 2, docsWeek: 10, compliance: 96, initials: "AB", color: "bg-blue-600" },
-];
-
-const initialJobs = [
-  { id: "JOB-1042", customer: "ABC Industries", type: "Electrical Panel Inspection", tech: "Marcus Reed", status: "Awaiting Review", when: "Today, 9:40 AM" },
-  { id: "JOB-1041", customer: "Meridian Apartments", type: "HVAC Maintenance", tech: "Priya Nair", status: "In Progress", when: "Today, 11:15 AM" },
-  { id: "JOB-1040", customer: "Coastal Diner", type: "Plumbing Repair", tech: "Diego Alvarez", status: "Compliance Flag", when: "Today, 8:05 AM" },
-  { id: "JOB-1039", customer: "Whitfield Residence", type: "Fire Alarm Test", tech: "Tom Whitfield", status: "Completed", when: "Yesterday" },
-  { id: "JOB-1038", customer: "Sunridge Solar Farm", type: "Panel Install", tech: "Sarah Kim", status: "Completed", when: "Yesterday" },
-  { id: "JOB-1037", customer: "Northgate Mall", type: "Electrical Rewiring", tech: "Aisha Bello", status: "Scheduled", when: "Tomorrow, 8:00 AM" },
-  { id: "JOB-1036", customer: "Oakview School", type: "HVAC Inspection", tech: "Priya Nair", status: "Completed", when: "2 days ago" },
-  { id: "JOB-1035", customer: "Riverside Clinic", type: "Plumbing Inspection", tech: "Diego Alvarez", status: "Awaiting Review", when: "2 days ago" },
-];
-
-const templates = [
-  { name: "Electrical Inspection Report", trade: "Electrical", fields: 18, used: 142, edited: "3 days ago" },
-  { name: "HVAC Service Report", trade: "HVAC", fields: 14, used: 98, edited: "1 week ago" },
-  { name: "Plumbing Job Sheet", trade: "Plumbing", fields: 12, used: 76, edited: "2 weeks ago" },
-  { name: "Fire Safety Certificate", trade: "Fire Safety", fields: 22, used: 41, edited: "5 days ago" },
-  { name: "Standard Invoice", trade: "General", fields: 9, used: 210, edited: "1 day ago" },
-  { name: "Warranty Registration", trade: "General", fields: 7, used: 33, edited: "3 weeks ago" },
-];
-
-const templateFieldMap = [
-  { field: "Customer Name", source: "Job record", confidence: 99 },
-  { field: "Equipment Type", source: "Image", confidence: 96 },
-  { field: "Voltage Reading", source: "OCR (meter)", confidence: 98 },
-  { field: "Earth Resistance", source: "Voice note", confidence: 82 },
-  { field: "Serial Number", source: "OCR (label)", confidence: 65 },
-  { field: "Technician Signature", source: "Image", confidence: 100 },
-  { field: "Customer Signature", source: "Image", confidence: 100 },
-];
-
-const documents = [
-  { name: "Electrical Inspection Report", job: "JOB-1042 · ABC Industries", tech: "Marcus Reed", confidence: 94, status: "Pending Review" },
-  { name: "HVAC Service Report", job: "JOB-1041 · Meridian Apartments", tech: "Priya Nair", confidence: 88, status: "Pending Review" },
-  { name: "Plumbing Job Sheet", job: "JOB-1040 · Coastal Diner", tech: "Diego Alvarez", confidence: 71, status: "Pending Review" },
-  { name: "Fire Safety Certificate", job: "JOB-1039 · Whitfield Residence", tech: "Tom Whitfield", confidence: 99, status: "Approved" },
-  { name: "Standard Invoice", job: "JOB-1038 · Sunridge Solar Farm", tech: "Sarah Kim", confidence: 97, status: "Sent" },
-  { name: "HVAC Inspection Report", job: "JOB-1036 · Oakview School", tech: "Priya Nair", confidence: 96, status: "Sent" },
-];
-
-const alerts = [
-  { level: "High", icon: AlertTriangle, title: "Earth resistance reading missing", desc: "Job #1042 was flagged before the technician left site. Required for electrical sign-off.", action: "Review job" },
-  { level: "Medium", icon: ScanLine, title: "Low-confidence field detected", desc: "Serial number on Job #1040 was extracted at 65% confidence and needs a manual check.", action: "Open document" },
-  { level: "Low", icon: Sparkles, title: "Template usage suggestion", desc: "3 recent HVAC jobs used a manual template. Switch to the AI-mapped version to save review time.", action: "Update template" },
-];
-
-const weeklyDocs = [
-  { day: "Mon", docs: 12 }, { day: "Tue", docs: 18 }, { day: "Wed", docs: 15 },
-  { day: "Thu", docs: 22 }, { day: "Fri", docs: 19 }, { day: "Sat", docs: 9 }, { day: "Sun", docs: 4 },
-];
-
-const complianceRules = [
-  { trade: "Electrical", fields: ["Voltage reading", "Current reading", "Earth resistance", "PPE confirmation", "Technician signature", "Customer signature"] },
-  { trade: "Plumbing", fields: ["Pressure test reading", "Leak check confirmation", "Material certification", "Customer signature"] },
-  { trade: "HVAC", fields: ["Refrigerant level", "Filter status", "Thermostat calibration", "Safety interlock check", "Technician signature"] },
-];
-
-const complianceLog = [
-  { job: "JOB-1042", msg: "Earth resistance reading missing", level: "High", time: "12 min ago" },
-  { job: "JOB-1040", msg: "Serial number below confidence threshold", level: "Medium", time: "1 hr ago" },
-  { job: "JOB-1029", msg: "Customer signature missing, auto-blocked send", level: "High", time: "Yesterday" },
-  { job: "JOB-1017", msg: "PPE confirmation added after review", level: "Low", time: "2 days ago" },
-];
-
-const complianceTrend = [
-  { week: "W1", rate: 90 }, { week: "W2", rate: 92 }, { week: "W3", rate: 91 },
-  { week: "W4", rate: 94 }, { week: "W5", rate: 96 }, { week: "W6", rate: 97 },
-];
-
-const docTimeTrend = [
-  { week: "W1", mins: 42 }, { week: "W2", mins: 37 }, { week: "W3", mins: 33 },
-  { week: "W4", mins: 29 }, { week: "W5", mins: 24 }, { week: "W6", mins: 19 },
-];
-
-const accuracyTrend = [
-  { week: "W1", pct: 89 }, { week: "W2", pct: 91 }, { week: "W3", pct: 92 },
-  { week: "W4", pct: 94 }, { week: "W5", pct: 95 }, { week: "W6", pct: 96 },
-];
 
 const plans = [
   {
@@ -150,6 +66,20 @@ const plans = [
     features: ["CRM / ERP integration", "Dedicated onboarding", "Custom compliance rules", "SLA & audit support"],
   },
 ];
+
+// Field types docx_extractor.py can infer -> the input control TemplateFillForm renders
+const FIELD_TYPE_INPUT = {
+  date: "date",
+  time: "time",
+  email: "email",
+  phone: "tel",
+  url: "url",
+  number: "number",
+  percentage: "number",
+  currency: "text",
+  multiline_text: "textarea",
+  checkbox: "checkbox",
+};
 
 /* ======================================================================
    SHARED UI ATOMS
@@ -183,26 +113,27 @@ const SEVERITY_TONE = { High: "bg-red-500", Medium: "bg-amber-500", Low: "bg-sky
 
 function SeverityTag({ level }) {
   return (
-    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold text-white ${SEVERITY_TONE[level]}`}>
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold text-white ${SEVERITY_TONE[level] || "bg-stone-400"}`}>
       {level}
     </span>
   );
 }
 
 function ConfidenceBar({ value }) {
-  const tone = value >= 90 ? "bg-emerald-500" : value >= 75 ? "bg-amber-500" : "bg-red-500";
+  const v = value ?? 0;
+  const tone = v >= 90 ? "bg-emerald-500" : v >= 75 ? "bg-amber-500" : "bg-red-500";
   return (
     <div className="flex items-center gap-2 w-32">
       <div className="h-1.5 flex-1 rounded-full bg-stone-100 overflow-hidden">
-        <div className={`h-full rounded-full ${tone}`} style={{ width: `${value}%` }} />
+        <div className={`h-full rounded-full ${tone}`} style={{ width: `${v}%` }} />
       </div>
-      <span className="fs-mono text-xs text-stone-500 w-8">{value}%</span>
+      <span className="fs-mono text-xs text-stone-500 w-10">{typeof v === "number" ? v.toFixed(0) : v}%</span>
     </div>
   );
 }
 
-function Card({ children, className = "" }) {
-  return <div className={`bg-white rounded-2xl border border-stone-100 fs-card-shadow ${className}`}>{children}</div>;
+function Card({ children, className = "", ...rest }) {
+  return <div className={`bg-white rounded-2xl border border-stone-100 fs-card-shadow ${className}`} {...rest}>{children}</div>;
 }
 
 function IconBadge({ icon: Icon, className }) {
@@ -213,8 +144,45 @@ function IconBadge({ icon: Icon, className }) {
   );
 }
 
+function Spinner({ label }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 py-16 text-stone-400">
+      <Loader2 className="h-6 w-6 fs-spin" />
+      {label && <p className="text-sm">{label}</p>}
+    </div>
+  );
+}
+
+function ErrorBanner({ message, onRetry }) {
+  return (
+    <div className="flex items-center justify-between gap-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+      <div className="flex items-center gap-2 text-sm text-red-700">
+        <AlertTriangle className="h-4 w-4 shrink-0" />
+        <span>{message}</span>
+      </div>
+      {onRetry && (
+        <button onClick={onRetry} className="text-xs font-semibold text-red-700 border border-red-300 rounded-full px-3 py-1.5 shrink-0">
+          Retry
+        </button>
+      )}
+    </div>
+  );
+}
+
+function relativeTime(iso) {
+  if (!iso) return "";
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hr ago`;
+  const days = Math.round(hrs / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
 /* ======================================================================
-   LANDING PAGE
+   LANDING PAGE (marketing content — not backend-driven)
    ====================================================================== */
 
 function Nav({ onLogin, onSignup }) {
@@ -519,64 +487,68 @@ function LandingPage({ onLogin, onSignup }) {
 }
 
 /* ======================================================================
-   AUTH PAGE
+   AUTH PAGE — wired to real /auth/login and /auth/signup
    ====================================================================== */
 
-function AuthPage({ onEnter, onBack }) {
+function AuthPage({ onAuthenticated, onBack }) {
   const [mode, setMode] = useState("login"); // login | signup
   const [step, setStep] = useState(1);
   const [selectedPlan, setSelectedPlan] = useState("Growth");
-  const [authError, setAuthError] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Refs to collect form field values without controlled state
-  const loginEmailRef = useRef();
-  const loginPasswordRef = useRef();
-  const signupBusinessRef = useRef();
-  const signupFullNameRef = useRef();
-  const signupTradeRef = useRef();
-  const signupEmailRef = useRef();
-  const signupPasswordRef = useRef();
+  const [loginEmail, setLoginEmail] = useState("priya@meridianfieldworks.com");
+  const [loginPassword, setLoginPassword] = useState("demo-password-123");
+  const [signupBusiness, setSignupBusiness] = useState("");
+  const [signupName, setSignupName] = useState("");
+  const [signupTrade, setSignupTrade] = useState("Electrical");
+  const [signupEmail, setSignupEmail] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
 
-  const handleLogin = async (e) => {
+  async function handleLogin(e) {
     e.preventDefault();
-    setAuthError(null);
-    setLoading(true);
+    setError(null);
+    setSubmitting(true);
     try {
-      const email = loginEmailRef.current?.value;
-      const password = loginPasswordRef.current?.value;
-      const result = await api.login(email, password);
+      const result = await api.login(loginEmail, loginPassword);
       api.setToken(result.access_token);
-      onEnter();
+      onAuthenticated();
     } catch (err) {
-      setAuthError(err.message);
+      setError(err.message || "Login failed");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
-  };
+  }
 
-  const goSignupStep2 = (e) => { e.preventDefault(); setStep(2); };
+  function goSignupStep2(e) {
+    e.preventDefault();
+    if (!signupBusiness || !signupName || !signupEmail || !signupPassword) {
+      setError("Please fill in every field before continuing.");
+      return;
+    }
+    setError(null);
+    setStep(2);
+  }
 
-  const handleSignup = async () => {
-    setAuthError(null);
-    setLoading(true);
+  async function handleCreateAccount() {
+    setError(null);
+    setSubmitting(true);
     try {
       const result = await api.signup({
-        business_name: signupBusinessRef.current?.value,
-        full_name: signupFullNameRef.current?.value,
-        email: signupEmailRef.current?.value,
-        password: signupPasswordRef.current?.value,
-        primary_trade: signupTradeRef.current?.value || "General",
+        business_name: signupBusiness,
+        full_name: signupName,
+        email: signupEmail,
+        password: signupPassword,
+        primary_trade: signupTrade,
       });
       api.setToken(result.access_token);
-      onEnter();
+      onAuthenticated();
     } catch (err) {
-      setAuthError(err.message);
-      setStep(1);
+      setError(err.message || "Could not create account");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
-  };
+  }
 
   return (
     <div className="fs-root min-h-screen bg-stone-950 flex">
@@ -615,22 +587,22 @@ function AuthPage({ onEnter, onBack }) {
           <div className="bg-white rounded-3xl p-8 fs-card-shadow">
             <div className="flex bg-stone-100 rounded-full p-1 mb-7">
               <button
-                onClick={() => { setMode("login"); setStep(1); }}
+                onClick={() => { setMode("login"); setStep(1); setError(null); }}
                 className={`flex-1 text-sm font-semibold py-2 rounded-full transition ${mode === "login" ? "bg-white text-stone-900 shadow-sm" : "text-stone-500"}`}
               >
                 Log in
               </button>
               <button
-                onClick={() => { setMode("signup"); setStep(1); }}
+                onClick={() => { setMode("signup"); setStep(1); setError(null); }}
                 className={`flex-1 text-sm font-semibold py-2 rounded-full transition ${mode === "signup" ? "bg-white text-stone-900 shadow-sm" : "text-stone-500"}`}
               >
                 Sign up
               </button>
             </div>
 
-            {authError && (
-              <div className="mb-3 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5">
-                {authError}
+            {error && (
+              <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5">
+                {error}
               </div>
             )}
 
@@ -640,18 +612,31 @@ function AuthPage({ onEnter, onBack }) {
                 <p className="text-sm text-stone-500 mb-5">Log in to your business dashboard.</p>
                 <div>
                   <label className="text-xs font-medium text-stone-600">Work email</label>
-                  <input ref={loginEmailRef} type="email" defaultValue="priya@meridianfieldworks.com" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400" />
+                  <input
+                    type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)}
+                    className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
+                  />
                 </div>
                 <div>
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-medium text-stone-600">Password</label>
                     <a href="#" className="text-xs text-orange-600 font-medium">Forgot password?</a>
                   </div>
-                  <input ref={loginPasswordRef} type="password" defaultValue="demo-password-123" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400" />
+                  <input
+                    type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)}
+                    className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
+                  />
                 </div>
-                <button type="submit" disabled={loading} className="w-full text-sm font-semibold text-white py-3 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-sm mt-2 disabled:opacity-60">
-                  {loading ? "Signing in…" : "Log in to dashboard"}
+                <button
+                  type="submit" disabled={submitting}
+                  className="w-full text-sm font-semibold text-white py-3 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-sm mt-2 disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {submitting && <Loader2 className="h-4 w-4 fs-spin" />}
+                  Log in to dashboard
                 </button>
+                <p className="text-xs text-stone-400 text-center pt-1">
+                  Demo account is pre-filled — just hit log in. (Run <code className="fs-mono">python -m app.seed</code> on the backend first.)
+                </p>
               </form>
             )}
 
@@ -664,27 +649,46 @@ function AuthPage({ onEnter, onBack }) {
                 <p className="text-sm text-stone-500 mb-5">Set up FieldProof for your team.</p>
                 <div>
                   <label className="text-xs font-medium text-stone-600">Business name</label>
-                  <input ref={signupBusinessRef} placeholder="Meridian Field Works" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400" />
+                  <input
+                    value={signupBusiness} onChange={(e) => setSignupBusiness(e.target.value)}
+                    placeholder="Meridian Field Works"
+                    className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-medium text-stone-600">Full name</label>
-                    <input ref={signupFullNameRef} placeholder="Priya Nair" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400" />
+                    <input
+                      value={signupName} onChange={(e) => setSignupName(e.target.value)}
+                      placeholder="Priya Nair"
+                      className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
+                    />
                   </div>
                   <div>
                     <label className="text-xs font-medium text-stone-600">Primary trade</label>
-                    <select ref={signupTradeRef} className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 bg-white">
+                    <select
+                      value={signupTrade} onChange={(e) => setSignupTrade(e.target.value)}
+                      className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 bg-white"
+                    >
                       <option>Electrical</option><option>Plumbing</option><option>HVAC</option><option>Solar</option><option>Fire Safety</option><option>General</option>
                     </select>
                   </div>
                 </div>
                 <div>
                   <label className="text-xs font-medium text-stone-600">Work email</label>
-                  <input ref={signupEmailRef} type="email" placeholder="you@company.com" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400" />
+                  <input
+                    type="email" value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)}
+                    placeholder="you@company.com"
+                    className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
+                  />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-stone-600">Password</label>
-                  <input ref={signupPasswordRef} type="password" placeholder="Create a password" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400" />
+                  <input
+                    type="password" value={signupPassword} onChange={(e) => setSignupPassword(e.target.value)}
+                    placeholder="Create a password"
+                    className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
+                  />
                 </div>
                 <button type="submit" className="w-full text-sm font-semibold text-white py-3 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-sm mt-2 flex items-center justify-center gap-2">
                   Continue to plan <ArrowRight className="h-4 w-4" />
@@ -721,7 +725,13 @@ function AuthPage({ onEnter, onBack }) {
                 </div>
                 <div className="flex gap-3">
                   <button onClick={() => setStep(1)} className="flex-1 text-sm font-semibold text-stone-700 py-3 rounded-xl border border-stone-300">Back</button>
-                  <button onClick={handleSignup} disabled={loading} className="flex-1 text-sm font-semibold text-white py-3 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 shadow-sm disabled:opacity-60">{loading ? "Creating…" : "Create account"}</button>
+                  <button
+                    onClick={handleCreateAccount} disabled={submitting}
+                    className="flex-1 text-sm font-semibold text-white py-3 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 shadow-sm disabled:opacity-60 flex items-center justify-center gap-2"
+                  >
+                    {submitting && <Loader2 className="h-4 w-4 fs-spin" />}
+                    Create account
+                  </button>
                 </div>
               </div>
             )}
@@ -742,6 +752,7 @@ function AuthPage({ onEnter, onBack }) {
 const NAV_ITEMS = [
   { key: "overview", label: "Overview", icon: LayoutGrid },
   { key: "jobs", label: "Jobs", icon: Briefcase },
+  { key: "capture", label: "Field Capture", icon: Camera },
   { key: "templates", label: "Templates", icon: FileText },
   { key: "documents", label: "Documents", icon: FileCheck2 },
   { key: "technicians", label: "Technicians", icon: Users },
@@ -792,13 +803,10 @@ function Sidebar({ active, setActive, onLogout, mobileOpen, setMobileOpen }) {
   );
 }
 
-function Topbar({ title, setMobileOpen, currentUser }) {
+function Topbar({ setMobileOpen, currentUser }) {
   const initials = currentUser?.full_name
-    ? currentUser.full_name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()
+    ? currentUser.full_name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase()
     : "?";
-  const firstName = currentUser?.full_name?.split(" ")[0] || "there";
-  const role = currentUser?.role ? (currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)) : "";
-
   return (
     <div className="flex items-center justify-between gap-4 px-5 lg:px-8 py-5 border-b border-stone-100 bg-white">
       <div className="flex items-center gap-3">
@@ -821,8 +829,8 @@ function Topbar({ title, setMobileOpen, currentUser }) {
         <div className="flex items-center gap-2 pl-3 border-l border-stone-200">
           <div className="h-9 w-9 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white text-sm font-semibold">{initials}</div>
           <div className="hidden sm:block">
-            <p className="text-sm font-semibold text-stone-800 leading-tight">Hi, {firstName} 👋</p>
-            <p className="text-xs text-stone-500 leading-tight">{role}</p>
+            <p className="text-sm font-semibold text-stone-800 leading-tight">Hi, {currentUser?.full_name?.split(" ")[0] || "there"} 👋</p>
+            <p className="text-xs text-stone-500 leading-tight">{currentUser?.role || ""}</p>
           </div>
           <ChevronDown className="h-4 w-4 text-stone-400 hidden sm:block" />
         </div>
@@ -835,52 +843,25 @@ function Topbar({ title, setMobileOpen, currentUser }) {
    DASHBOARD — OVERVIEW
    ====================================================================== */
 
-// Tiny skeleton placeholder used while data loads
-function Skeleton({ className = "" }) {
-  return <div className={`animate-pulse bg-stone-100 rounded-xl ${className}`} />;
-}
+function OverviewView({ summary, jobs, complianceEvents, onCreateJob, loading, error, onRetry }) {
+  if (loading) return <Spinner label="Loading overview..." />;
+  if (error) return <ErrorBanner message={error} onRetry={onRetry} />;
 
-function OverviewView({ onCreateJob }) {
-  const [summary, setSummary] = useState(null);
-  const [recentJobs, setRecentJobs] = useState([]);
-  const [complianceAlerts, setComplianceAlerts] = useState([]);
-  const [loadingSummary, setLoadingSummary] = useState(true);
+  const statCards = [
+    { icon: Briefcase, color: "bg-blue-600", label: "Active Jobs Today", value: String(summary?.active_jobs_today ?? 0) },
+    { icon: FileCheck2, color: "bg-violet-600", label: "Documents Pending Review", value: String(summary?.documents_pending_review ?? 0) },
+    { icon: AlertTriangle, color: "bg-red-600", label: "Open Compliance Alerts", value: String(summary?.open_compliance_alerts ?? 0) },
+    { icon: Gauge, color: "bg-teal-600", label: "AI Auto-Approval Rate", value: `${summary?.ai_auto_approval_rate ?? 0}%` },
+  ];
 
-  useEffect(() => {
-    Promise.all([
-      api.getAnalyticsSummary(),
-      api.getJobs(),
-      api.getComplianceEvents(),
-    ]).then(([sum, jobs, events]) => {
-      setSummary(sum);
-      setRecentJobs(jobs.slice(0, 4));
-      setComplianceAlerts(events.filter((e) => !e.resolved).slice(0, 3));
-    }).catch(console.error).finally(() => setLoadingSummary(false));
-  }, []);
-
-  const accuracyPct = summary ? Math.round(summary.avg_documentation_accuracy * 100) : null;
-  // Gauge dash: 283 total arc length, map accuracy to it
-  const gaugeDash = accuracyPct != null ? `${Math.round((accuracyPct / 100) * 283)} 283` : "0 283";
-
-  // Map backend status enum → UI label
-  const STATUS_MAP = {
-    pending: "Awaiting Review", in_progress: "In Progress",
-    compliance_flag: "Compliance Flag", completed: "Completed", scheduled: "Scheduled",
-  };
-  const toLabel = (s) => STATUS_MAP[s] || s;
-
-  // Severity icon mapping for compliance events
-  const SEV_ICON = { critical: AlertTriangle, high: AlertTriangle, medium: ScanLine, low: Sparkles };
-
-  const statCards = summary ? [
-    { icon: Briefcase, color: "bg-blue-600", label: "Active Jobs Today", value: String(summary.active_jobs_today), trend: "live from API", up: true },
-    { icon: FileCheck2, color: "bg-violet-600", label: "Documents Pending Review", value: String(summary.documents_pending_review), trend: "live from API", up: false },
-    { icon: AlertTriangle, color: "bg-red-600", label: "Open Compliance Alerts", value: String(summary.open_compliance_alerts), trend: "live from API", up: false },
-    { icon: Gauge, color: "bg-teal-600", label: "AI Auto-Approval Rate", value: `${Math.round(summary.ai_auto_approval_rate * 100)}%`, trend: "live from API", up: true },
-  ] : [];
-
-  const weeklyDocs = summary?.weekly_docs?.map((p) => ({ day: p.label, docs: p.value })) || [];
-  const totalDocsWeek = weeklyDocs.reduce((a, p) => a + p.docs, 0);
+  const gaugeValue = summary?.avg_documentation_accuracy ?? 0;
+  const weeklyDocs = (summary?.weekly_docs || []).map((p) => ({ day: p.label, docs: p.value }));
+  const alerts = (complianceEvents || []).slice(0, 3).map((ev) => ({
+    icon: ev.severity === "High" ? AlertTriangle : ev.severity === "Low" ? Sparkles : ScanLine,
+    level: ev.severity,
+    title: ev.message,
+    desc: `Job ${ev.job_id} · ${relativeTime(ev.created_at)}`,
+  }));
 
   return (
     <div className="space-y-6">
@@ -899,72 +880,52 @@ function OverviewView({ onCreateJob }) {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        {[["CalendarDays", "Today"], ["Filter", "All technicians"], ["Building2", "All job types"]].map(([, label]) => (
-          <button key={label} className="inline-flex items-center gap-2 text-sm font-medium text-stone-600 bg-white border border-stone-200 rounded-full px-4 py-2">
-            {label} <ChevronDown className="h-3.5 w-3.5" />
-          </button>
-        ))}
-      </div>
-
       <div className="grid lg:grid-cols-12 gap-6">
         <Card className="lg:col-span-8 p-6">
           <div className="grid sm:grid-cols-2 gap-6">
             <div>
               <p className="text-sm font-semibold text-stone-800 mb-4">Avg documentation accuracy</p>
               <div className="relative flex items-center justify-center">
-                {loadingSummary ? <Skeleton className="h-28 w-full" /> : (
-                  <svg viewBox="0 0 200 120" className="w-full max-w-xs">
-                    <path d="M20,110 A90,90 0 0,1 180,110" fill="none" stroke="#f1efec" strokeWidth="16" strokeLinecap="round" />
-                    <path d="M20,110 A90,90 0 0,1 180,110" fill="none" stroke="url(#gaugeGrad)" strokeWidth="16" strokeLinecap="round" strokeDasharray={gaugeDash} />
-                    <defs>
-                      <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor="#f43f5e" /><stop offset="45%" stopColor="#f59e0b" /><stop offset="100%" stopColor="#10b981" />
-                      </linearGradient>
-                    </defs>
-                  </svg>
-                )}
-                {!loadingSummary && (
-                  <div className="absolute flex flex-col items-center top-9">
-                    <span className="fs-display text-3xl font-semibold text-stone-900">{accuracyPct}%</span>
-                    <span className="text-xs text-stone-500">last 30 days</span>
-                  </div>
-                )}
+                <svg viewBox="0 0 200 120" className="w-full max-w-xs">
+                  <path d="M20,110 A90,90 0 0,1 180,110" fill="none" stroke="#f1efec" strokeWidth="16" strokeLinecap="round" />
+                  <path d="M20,110 A90,90 0 0,1 180,110" fill="none" stroke="url(#gaugeGrad)" strokeWidth="16" strokeLinecap="round" strokeDasharray={`${(gaugeValue / 100) * 283} 283`} />
+                  <defs>
+                    <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#f43f5e" /><stop offset="45%" stopColor="#f59e0b" /><stop offset="100%" stopColor="#10b981" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div className="absolute flex flex-col items-center top-9">
+                  <span className="fs-display text-3xl font-semibold text-stone-900">{gaugeValue}%</span>
+                  <span className="text-xs text-stone-500">across all documents</span>
+                </div>
               </div>
             </div>
             <div>
               <p className="text-sm font-semibold text-stone-800 mb-4">Active job status</p>
-              {loadingSummary ? (
-                <div className="space-y-3">{[1,2,3,4].map((i) => <Skeleton key={i} className="h-8" />)}</div>
-              ) : (
-                <div className="space-y-3.5">
-                  {recentJobs.map((j) => (
-                    <div key={j.id} className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-stone-800">{j.technician_id || "Unassigned"}</p>
-                        <p className="text-xs text-stone-500">{j.id} · {j.job_type}</p>
-                      </div>
-                      <StatusPill label={toLabel(j.status)} />
+              <div className="space-y-3.5">
+                {jobs.slice(0, 4).map((j) => (
+                  <div key={j.id} className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-stone-800">{j.customer}</p>
+                      <p className="text-xs text-stone-500">{j.id} · {j.job_type}</p>
                     </div>
-                  ))}
-                </div>
-              )}
+                    <StatusPill label={j.status} />
+                  </div>
+                ))}
+                {jobs.length === 0 && <p className="text-sm text-stone-400">No jobs yet — create your first one.</p>}
+              </div>
             </div>
           </div>
         </Card>
 
         <div className="lg:col-span-4 grid grid-cols-2 lg:grid-cols-1 gap-4">
-          {loadingSummary
-            ? [1,2,3,4].map((i) => <Skeleton key={i} className="h-20" />)
-            : statCards.map((s) => (
+          {statCards.map((s) => (
             <Card key={s.label} className="p-4 flex items-center gap-3">
               <IconBadge icon={s.icon} className={s.color} />
               <div className="min-w-0">
                 <p className="text-xs text-stone-500 truncate">{s.label}</p>
                 <p className="fs-display text-xl font-semibold text-stone-900">{s.value}</p>
-                <p className={`text-xs flex items-center gap-1 ${s.up ? "text-emerald-600" : "text-red-500"}`}>
-                  {s.up ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />} {s.trend}
-                </p>
               </div>
             </Card>
           ))}
@@ -978,28 +939,21 @@ function OverviewView({ onCreateJob }) {
               <Sparkles className="h-4.5 w-4.5 text-orange-600" />
               <p className="text-sm font-semibold text-stone-800">Compliance alerts</p>
             </div>
-            <span className="text-xs text-stone-400">Live from API</span>
           </div>
-          {loadingSummary ? (
-            <div className="grid sm:grid-cols-3 gap-4">{[1,2,3].map((i) => <Skeleton key={i} className="h-32" />)}</div>
-          ) : complianceAlerts.length === 0 ? (
-            <p className="text-sm text-stone-400 py-4">No open compliance alerts. Great work!</p>
+          {alerts.length === 0 ? (
+            <p className="text-sm text-stone-400 py-6 text-center">No open compliance alerts. Nice work.</p>
           ) : (
             <div className="grid sm:grid-cols-3 gap-4">
-              {complianceAlerts.map((a) => {
-                const SevIcon = SEV_ICON[a.severity] || AlertTriangle;
-                return (
-                  <div key={a.id} className="border border-stone-100 rounded-xl p-4 flex flex-col">
-                    <div className="flex items-start justify-between mb-3">
-                      <SevIcon className="h-5 w-5 text-stone-400" />
-                      <SeverityTag level={a.severity.charAt(0).toUpperCase() + a.severity.slice(1)} />
-                    </div>
-                    <p className="text-sm font-semibold text-stone-800 mb-1">{a.message}</p>
-                    <p className="text-xs text-stone-500 leading-relaxed flex-1">Job {a.job_id}</p>
-                    <button className="mt-4 text-xs font-semibold text-white bg-stone-900 rounded-full py-2">Review job</button>
+              {alerts.map((a, i) => (
+                <div key={i} className="border border-stone-100 rounded-xl p-4 flex flex-col">
+                  <div className="flex items-start justify-between mb-3">
+                    <a.icon className="h-5 w-5 text-stone-400" />
+                    <SeverityTag level={a.level} />
                   </div>
-                );
-              })}
+                  <p className="text-sm font-semibold text-stone-800 mb-1">{a.title}</p>
+                  <p className="text-xs text-stone-500 leading-relaxed flex-1">{a.desc}</p>
+                </div>
+              ))}
             </div>
           )}
         </Card>
@@ -1007,10 +961,10 @@ function OverviewView({ onCreateJob }) {
         <Card className="lg:col-span-4 p-6 bg-gradient-to-br from-orange-500 to-orange-700 text-white border-0">
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm font-semibold">Documents generated</p>
-            <span className="text-xs bg-white/20 px-2.5 py-1 rounded-full">Weekly</span>
+            <span className="text-xs bg-white/20 px-2.5 py-1 rounded-full">Last 7 days</span>
           </div>
           <div className="h-40">
-            {loadingSummary ? <div className="h-full flex items-center justify-center text-white/50 text-sm">Loading…</div> : (
+            {weeklyDocs.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={weeklyDocs}>
                   <defs>
@@ -1023,9 +977,10 @@ function OverviewView({ onCreateJob }) {
                   <Area type="monotone" dataKey="docs" stroke="#fff" strokeWidth={2} fill="url(#docsFill)" />
                 </AreaChart>
               </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-sm text-white/70">No documents yet this week</div>
             )}
           </div>
-          <p className="text-xs text-white/80 mt-2">{totalDocsWeek} documents generated this week.</p>
         </Card>
       </div>
     </div>
@@ -1036,72 +991,37 @@ function OverviewView({ onCreateJob }) {
    DASHBOARD — JOBS
    ====================================================================== */
 
-// Map backend status strings → UI status label
-const JOB_STATUS_MAP = {
-  pending: "Awaiting Review", in_progress: "In Progress",
-  compliance_flag: "Compliance Flag", completed: "Completed", scheduled: "Scheduled",
-};
-const toJobLabel = (s) => JOB_STATUS_MAP[s] || s;
-
-// Reverse map UI filter labels → backend status values
-const JOB_FILTER_TO_API = {
-  "Awaiting Review": "pending", "In Progress": "in_progress",
-  "Compliance Flag": "compliance_flag", "Completed": "completed", "Scheduled": "scheduled",
-};
-
-function JobsView() {
-  const [jobs, setJobs] = useState([]);
-  const [technicians, setTechnicians] = useState([]);
+function JobsView({ jobs, technicians, onJobsChanged, onCaptureJob }) {
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState("All");
-  const [loading, setLoading] = useState(true);
-  const [submitLoading, setSubmitLoading] = useState(false);
-
-  const loadJobs = useCallback(async (f = "All") => {
-    setLoading(true);
-    try {
-      const statusParam = f === "All" ? null : JOB_FILTER_TO_API[f] || null;
-      const data = await api.getJobs(statusParam);
-      setJobs(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadJobs();
-    api.getTechnicians().then(setTechnicians).catch(console.error);
-  }, [loadJobs]);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState(null);
 
   const filters = ["All", "Scheduled", "In Progress", "Awaiting Review", "Compliance Flag", "Completed"];
-  const shown = jobs; // already filtered server-side
+  const shown = filter === "All" ? jobs : jobs.filter((j) => j.status === filter);
 
-  const handleFilterChange = (f) => { setFilter(f); loadJobs(f); };
-
-  const addJob = async (e) => {
+  async function addJob(e) {
     e.preventDefault();
     const form = e.target;
-    setSubmitLoading(true);
+    setFormError(null);
+    setSubmitting(true);
     try {
-      const tech = technicians.find((t) => t.name === form.tech.value);
       await api.createJob({
         customer: form.customer.value || "New Customer",
-        site_address: form.site_address?.value || null,
+        site_address: form.site_address.value || null,
         job_type: form.type.value,
-        technician_id: tech?.id || null,
-        notes: form.notes?.value || null,
-        scheduled_at: form.scheduled_at?.value || null,
+        technician_id: form.tech.value || null,
+        notes: form.notes.value || null,
       });
       setShowForm(false);
-      loadJobs(filter);
+      form.reset();
+      onJobsChanged();
     } catch (err) {
-      alert(err.message);
+      setFormError(err.message || "Could not create job");
     } finally {
-      setSubmitLoading(false);
+      setSubmitting(false);
     }
-  };
+  }
 
   return (
     <div className="space-y-6">
@@ -1118,6 +1038,7 @@ function JobsView() {
       {showForm && (
         <Card className="p-6">
           <p className="text-sm font-semibold text-stone-800 mb-4">Create a new job</p>
+          {formError && <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5">{formError}</div>}
           <form onSubmit={addJob} className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-stone-600">Customer name</label>
@@ -1125,7 +1046,7 @@ function JobsView() {
             </div>
             <div>
               <label className="text-xs font-medium text-stone-600">Site address</label>
-              <input placeholder="e.g. 220 Harbor Rd" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" />
+              <input name="site_address" placeholder="e.g. 220 Harbor Rd" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" />
             </div>
             <div>
               <label className="text-xs font-medium text-stone-600">Service type</label>
@@ -1136,20 +1057,19 @@ function JobsView() {
             <div>
               <label className="text-xs font-medium text-stone-600">Assign technician</label>
               <select name="tech" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-200">
-                {technicians.map((t) => <option key={t.name}>{t.name}</option>)}
+                <option value="">Unassigned</option>
+                {technicians.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </div>
-            <div>
-              <label className="text-xs font-medium text-stone-600">Scheduled date & time</label>
-              <input type="datetime-local" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" />
-            </div>
-            <div>
+            <div className="sm:col-span-2">
               <label className="text-xs font-medium text-stone-600">Notes for technician</label>
-              <input placeholder="Optional" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" />
+              <input name="notes" placeholder="Optional" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" />
             </div>
             <div className="sm:col-span-2 flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setShowForm(false)} className="text-sm font-semibold text-stone-600 px-4 py-2.5">Cancel</button>
-              <button type="submit" className="text-sm font-semibold text-white bg-stone-900 rounded-full px-5 py-2.5">Create job</button>
+              <button type="submit" disabled={submitting} className="text-sm font-semibold text-white bg-stone-900 rounded-full px-5 py-2.5 disabled:opacity-60 flex items-center gap-2">
+                {submitting && <Loader2 className="h-4 w-4 fs-spin" />} Create job
+              </button>
             </div>
           </form>
         </Card>
@@ -1157,7 +1077,7 @@ function JobsView() {
 
       <div className="flex flex-wrap gap-2">
         {filters.map((f) => (
-          <button key={f} onClick={() => handleFilterChange(f)} className={`text-xs font-semibold px-3.5 py-1.5 rounded-full border ${filter === f ? "bg-stone-900 text-white border-stone-900" : "text-stone-600 border-stone-200 bg-white"}`}>
+          <button key={f} onClick={() => setFilter(f)} className={`text-xs font-semibold px-3.5 py-1.5 rounded-full border ${filter === f ? "bg-stone-900 text-white border-stone-900" : "text-stone-600 border-stone-200 bg-white"}`}>
             {f}
           </button>
         ))}
@@ -1172,42 +1092,48 @@ function JobsView() {
                 <th className="px-6 py-3 font-medium">Customer</th>
                 <th className="px-6 py-3 font-medium">Technician</th>
                 <th className="px-6 py-3 font-medium">Status</th>
-                <th className="px-6 py-3 font-medium">Scheduled</th>
+                <th className="px-6 py-3 font-medium">Created</th>
                 <th className="px-6 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {loading ? (
-                <tr><td colSpan={6} className="px-6 py-8 text-center text-sm text-stone-400">Loading jobs…</td></tr>
-              ) : shown.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-8 text-center text-sm text-stone-400">No jobs found.</td></tr>
-              ) : shown.map((j) => (
-                <tr key={j.id} className="border-b border-stone-50 last:border-0 hover:bg-stone-50">
-                  <td className="px-6 py-4">
-                    <p className="fs-mono text-xs text-stone-400">{j.id}</p>
-                    <p className="font-medium text-stone-800">{j.job_type}</p>
-                  </td>
-                  <td className="px-6 py-4 text-stone-600">{j.customer}</td>
-                  <td className="px-6 py-4 text-stone-600">{j.technician_id || "—"}</td>
-                  <td className="px-6 py-4"><StatusPill label={toJobLabel(j.status)} /></td>
-                  <td className="px-6 py-4 text-stone-500">{j.scheduled_at ? new Date(j.scheduled_at).toLocaleString() : "—"}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center justify-end gap-2">
-                      <button className="p-2 rounded-lg hover:bg-stone-100"><Eye className="h-4 w-4 text-stone-500" /></button>
-                      <button className="p-2 rounded-lg hover:bg-stone-100"><MoreHorizontal className="h-4 w-4 text-stone-500" /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {shown.map((j) => {
+                const tech = technicians.find((t) => t.id === j.technician_id);
+                return (
+                  <tr key={j.id} className="border-b border-stone-50 last:border-0 hover:bg-stone-50">
+                    <td className="px-6 py-4">
+                      <p className="fs-mono text-xs text-stone-400">{j.id}</p>
+                      <p className="font-medium text-stone-800">{j.job_type}</p>
+                    </td>
+                    <td className="px-6 py-4 text-stone-600">{j.customer}</td>
+                    <td className="px-6 py-4 text-stone-600">{tech ? tech.name : "Unassigned"}</td>
+                    <td className="px-6 py-4"><StatusPill label={j.status} /></td>
+                    <td className="px-6 py-4 text-stone-500">{relativeTime(j.created_at)}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-end gap-2">
+                        {onCaptureJob && (
+                          <button
+                            onClick={() => onCaptureJob(j)}
+                            className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-600 border border-orange-200"
+                            title="Record voice or photo for this job"
+                          >
+                            <Camera className="h-3.5 w-3.5" /> Capture
+                          </button>
+                        )}
+                        <button className="p-2 rounded-lg hover:bg-stone-100"><Eye className="h-4 w-4 text-stone-500" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {shown.length === 0 && (
+                <tr><td colSpan={6} className="px-6 py-10 text-center text-sm text-stone-400">No jobs match this filter.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
         <div className="flex items-center justify-between px-6 py-3 text-xs text-stone-500 border-t border-stone-100">
-          <span>Showing {shown.length} job{shown.length !== 1 ? "s" : ""}</span>
-          <div className="flex gap-2">
-            <button className="px-3 py-1.5 rounded-lg border border-stone-200">Previous</button>
-            <button className="px-3 py-1.5 rounded-lg border border-stone-200">Next</button>
-          </div>
+          <span>Showing {shown.length} of {jobs.length} jobs</span>
         </div>
       </Card>
     </div>
@@ -1215,98 +1141,863 @@ function JobsView() {
 }
 
 /* ======================================================================
-   DASHBOARD — TEMPLATES
+   DASHBOARD — TEMPLATES  (the main event: real .docx upload + review + fill)
    ====================================================================== */
 
-function TemplatesView() {
-  const [templates, setTemplates] = useState([]);
-  const [selected, setSelected] = useState(null);
-  const [fieldMap, setFieldMap] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [fieldMapLoading, setFieldMapLoading] = useState(false);
+function UploadTemplateForm({ onUploaded, onCancel }) {
+  const [name, setName] = useState("");
+  const [trade, setTrade] = useState("Electrical");
+  const [file, setFile] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const fileInputRef = useRef(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!file) {
+      setError("Choose a .docx file to upload.");
+      return;
+    }
+    setError(null);
+    setSubmitting(true);
+    try {
+      const tpl = await api.uploadTemplate({ name: name || file.name, trade, file });
+      onUploaded(tpl);
+    } catch (err) {
+      setError(err.message || "Upload failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Card className="p-6">
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-sm font-semibold text-stone-800">Upload a document template</p>
+        <button onClick={onCancel}><X className="h-5 w-5 text-stone-400" /></button>
+      </div>
+      {error && <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5">{error}</div>}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs font-medium text-stone-600">Template name</label>
+            <input
+              value={name} onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Electrical Inspection Report"
+              className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-stone-600">Trade</label>
+            <select value={trade} onChange={(e) => setTrade(e.target.value)} className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-200">
+              {Object.keys(TRADE_ICON).map((t) => <option key={t}>{t}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div
+          onClick={() => fileInputRef.current?.click()}
+          className="border-2 border-dashed border-stone-200 rounded-xl p-6 flex flex-col items-center justify-center text-center text-stone-400 hover:border-orange-300 hover:text-orange-500 cursor-pointer"
+        >
+          <FileUp className="h-6 w-6 mb-2" />
+          <p className="text-sm font-medium">{file ? file.name : "Click to choose a .docx file"}</p>
+          <p className="text-xs mt-1">Blanks, checkboxes, and table fields are detected automatically</p>
+          <input
+            ref={fileInputRef} type="file" accept=".docx" className="hidden"
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+          />
+        </div>
+
+        <div className="flex justify-end gap-3 pt-1">
+          <button type="button" onClick={onCancel} className="text-sm font-semibold text-stone-600 px-4 py-2.5">Cancel</button>
+          <button type="submit" disabled={submitting} className="text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-full px-5 py-2.5 disabled:opacity-60 flex items-center gap-2">
+            {submitting && <Loader2 className="h-4 w-4 fs-spin" />} Upload & extract fields
+          </button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+const KIND_LABEL = {
+  paragraph_blank: "Text blank",
+  checkbox_option: "Checkbox",
+  empty_cell: "Table cell",
+  cell_blank: "Table blank",
+  multiline_blank_group: "Multi-line block",
+};
+
+const FIELD_TYPE_LABEL = {
+  text: "Text", date: "Date", time: "Time", email: "Email", phone: "Phone", url: "URL",
+  address: "Address", percentage: "Percentage", currency: "Currency", number: "Number",
+  file_upload: "File upload", image_upload: "Image upload", rating: "Rating",
+  signature: "Signature", multiline_text: "Multi-line text", checkbox: "Checkbox",
+};
+
+function TemplateFieldsList({ fields, templateId, onFieldUpdated, canEdit = true }) {
+  const [editingId, setEditingId] = useState(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [editType, setEditType] = useState("text");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+
+  if (fields.length === 0) {
+    return <p className="text-sm text-stone-400">No fillable fields were detected in this document.</p>;
+  }
+
+  function startEdit(f) {
+    setEditingId(f.field_id);
+    setEditLabel(f.label || "");
+    setEditType(f.field_type || "text");
+    setSaveError(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setSaveError(null);
+  }
+
+  async function handleSave(fieldId) {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const res = await api.updateTemplateField(templateId, fieldId, {
+        label: editLabel,
+        field_type: editType,
+      });
+      if (onFieldUpdated) {
+        onFieldUpdated(res.field, res.extraction);
+      }
+      setEditingId(null);
+    } catch (err) {
+      setSaveError(err.message || "Failed to save field changes");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="divide-y divide-stone-100">
+      {saveError && (
+        <div className="p-2.5 mb-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between">
+          <span>{saveError}</span>
+          <button onClick={() => setSaveError(null)} className="text-red-500 font-bold ml-2">×</button>
+        </div>
+      )}
+      {fields.map((f) => {
+        const isEditing = editingId === f.field_id;
+        if (isEditing) {
+          return (
+            <div key={f.field_id} className="py-3 px-3 bg-orange-50/60 rounded-xl my-1 border border-orange-200 shadow-sm">
+              <div className="text-[11px] fs-mono text-stone-500 mb-2">{f.field_id} · {KIND_LABEL[f.kind] || f.kind}</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-3">
+                <div>
+                  <label className="text-xs font-semibold text-stone-700 block mb-1">Field Label</label>
+                  <input
+                    type="text"
+                    value={editLabel}
+                    onChange={(e) => setEditLabel(e.target.value)}
+                    placeholder="e.g. Inspection Date"
+                    className="w-full text-xs px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-stone-700 block mb-1">Field Type</label>
+                  <select
+                    value={editType}
+                    onChange={(e) => setEditType(e.target.value)}
+                    className="w-full text-xs px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
+                  >
+                    {Object.entries(FIELD_TYPE_LABEL).map(([val, text]) => (
+                      <option key={val} value={val}>{text}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={cancelEdit}
+                  className="px-3 py-1.5 text-xs text-stone-600 hover:bg-stone-200 rounded-lg font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => handleSave(f.field_id)}
+                  className="px-3.5 py-1.5 text-xs text-white bg-orange-600 hover:bg-orange-700 rounded-lg font-semibold flex items-center gap-1.5 shadow-sm"
+                >
+                  {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                  Save Field
+                </button>
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div key={f.field_id} className="flex items-center justify-between gap-3 py-2.5 px-2 hover:bg-stone-50 rounded-lg transition-colors group">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-stone-800 truncate">
+                {f.label || <span className="text-stone-400 italic">Unlabeled field</span>}
+              </p>
+              <p className="fs-mono text-xs text-stone-400">{f.field_id} · {KIND_LABEL[f.kind] || f.kind}</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs font-semibold text-stone-600 bg-stone-100 px-2.5 py-1 rounded-full">
+                {FIELD_TYPE_LABEL[f.field_type] || f.field_type}
+              </span>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => startEdit(f)}
+                  title="Edit field label or type"
+                  className="p-1.5 text-stone-400 hover:text-orange-600 hover:bg-orange-50 rounded-md transition-colors"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TemplateDetailPanel({ template, jobs, onClose, onGenerated, currentUser }) {
+  const [fieldsData, setFieldsData] = useState(null);
+  const [fieldsLoading, setFieldsLoading] = useState(true);
+  const [fieldsError, setFieldsError] = useState(null);
+  const [showFillForm, setShowFillForm] = useState(false);
+  const [values, setValues] = useState({});
+  const [jobId, setJobId] = useState("");
+  const [filling, setFilling] = useState(false);
+  const [fillError, setFillError] = useState(null);
+  const [generatedDoc, setGeneratedDoc] = useState(null);
 
   useEffect(() => {
-    api.getTemplates().then(setTemplates).catch(console.error).finally(() => setLoading(false));
+    let cancelled = false;
+    setFieldsLoading(true);
+    setFieldsError(null);
+    setGeneratedDoc(null);
+    setShowFillForm(false);
+    api.getTemplateFields(template.id)
+      .then((data) => { if (!cancelled) setFieldsData(data); })
+      .catch((err) => { if (!cancelled) setFieldsError(err.message || "Could not load fields"); })
+      .finally(() => { if (!cancelled) setFieldsLoading(false); });
+    return () => { cancelled = true; };
+  }, [template.id]);
+
+  function handleFieldUpdated(updatedField, newExtraction) {
+    if (newExtraction) {
+      setFieldsData(newExtraction);
+    } else {
+      setFieldsData((prev) => {
+        if (!prev) return prev;
+        const newFields = prev.fields.map((f) => (f.field_id === updatedField.field_id ? { ...f, ...updatedField } : f));
+        return { ...prev, fields: newFields };
+      });
+    }
+    if (onGenerated) {
+      onGenerated();
+    }
+  }
+
+  function setValue(fieldId, value) {
+    setValues((prev) => ({ ...prev, [fieldId]: value }));
+  }
+
+  async function handleGenerate() {
+    if (!jobId) {
+      setFillError("Choose a job to attach this document to.");
+      return;
+    }
+    setFillError(null);
+    setFilling(true);
+    try {
+      const doc = await api.fillTemplate(template.id, jobId, values);
+      setGeneratedDoc(doc);
+      onGenerated();
+    } catch (err) {
+      setFillError(err.message || "Could not generate document");
+    } finally {
+      setFilling(false);
+    }
+  }
+
+  const stats = fieldsData?.statistics;
+  const typeCounts = stats ? Object.entries(stats.fields_by_type || {}) : [];
+
+  return (
+    <Card className="p-6">
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-sm font-semibold text-stone-800">
+          {template.name} {showFillForm ? "— fill & generate" : "— extracted fields"}
+        </p>
+        <button onClick={onClose}><X className="h-5 w-5 text-stone-400" /></button>
+      </div>
+      <p className="text-xs text-stone-500 mb-5">
+        {showFillForm ? "Fields detected automatically from the uploaded .docx form." : "Every blank, checkbox, and table field found in the uploaded document. Click the pencil icon to edit field labels or types."}
+      </p>
+
+      {fieldsLoading && <Spinner label="Loading fields..." />}
+
+      {fieldsError && (
+        <div className="text-sm text-stone-500 bg-stone-50 border border-stone-200 rounded-xl px-4 py-4">
+          {fieldsError.includes("404") || fieldsError.toLowerCase().includes("no extracted")
+            ? "This template has no extracted field data — it wasn't uploaded as a .docx file, so its fields can't be listed or auto-filled."
+            : fieldsError}
+        </div>
+      )}
+
+      {/* --- Review mode: read-only list of what was detected with inline edit affordance --- */}
+      {fieldsData && !showFillForm && (
+        <>
+          <div className="flex flex-wrap items-center gap-2 mb-5">
+            <span className="text-xs font-semibold text-stone-700 bg-stone-100 px-3 py-1.5 rounded-full">
+              {stats?.fields_total ?? fieldsData.fields.length} field{(stats?.fields_total ?? fieldsData.fields.length) === 1 ? "" : "s"} detected
+            </span>
+            {typeCounts.map(([type, count]) => (
+              <span key={type} className="text-xs font-medium text-orange-700 bg-orange-50 border border-orange-200 px-2.5 py-1 rounded-full">
+                {count} {FIELD_TYPE_LABEL[type] || type}
+              </span>
+            ))}
+          </div>
+
+          <div className="mb-6 max-h-96 overflow-y-auto fs-scroll pr-1">
+            <TemplateFieldsList
+              fields={fieldsData.fields}
+              templateId={template.id}
+              onFieldUpdated={handleFieldUpdated}
+              canEdit={currentUser?.role !== "Technician"}
+            />
+          </div>
+
+          <button
+            onClick={() => setShowFillForm(true)}
+            className="w-full text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-full py-2.5 flex items-center justify-center gap-2"
+          >
+            <FileCheck2 className="h-4 w-4" /> Fill & generate a document
+          </button>
+        </>
+      )}
+
+      {/* --- Fill mode: editable inputs, one per field --- */}
+      {fieldsData && showFillForm && !generatedDoc && (
+        <>
+          <button onClick={() => setShowFillForm(false)} className="mb-4 text-xs font-semibold text-stone-500 flex items-center gap-1">
+            <ChevronRight className="h-3.5 w-3.5 rotate-180" /> Back to field list
+          </button>
+
+          <div className="mb-5">
+            <label className="text-xs font-medium text-stone-600">Attach to job</label>
+            <select
+              value={jobId} onChange={(e) => setJobId(e.target.value)}
+              className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
+            >
+              <option value="">Select a job...</option>
+              {jobs.map((j) => <option key={j.id} value={j.id}>{j.id} · {j.customer}</option>)}
+            </select>
+          </div>
+
+          <div className="space-y-4 mb-5 max-h-96 overflow-y-auto fs-scroll pr-1">
+            {fieldsData.fields.map((f) => (
+              <FieldInput key={f.field_id} field={f} value={values[f.field_id]} onChange={(v) => setValue(f.field_id, v)} />
+            ))}
+            {fieldsData.fields.length === 0 && (
+              <p className="text-sm text-stone-400">No fillable fields were detected in this document.</p>
+            )}
+          </div>
+
+          {fillError && <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5">{fillError}</div>}
+
+          <button
+            onClick={handleGenerate} disabled={filling}
+            className="w-full text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-full py-2.5 disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            {filling ? <Loader2 className="h-4 w-4 fs-spin" /> : <FileCheck2 className="h-4 w-4" />}
+            Generate document
+          </button>
+        </>
+      )}
+
+      {generatedDoc && (
+        <div className="border border-emerald-200 bg-emerald-50 rounded-xl p-5 text-center">
+          <CircleCheck className="h-8 w-8 text-emerald-600 mx-auto mb-3" />
+          <p className="text-sm font-semibold text-stone-800">Document generated</p>
+          <p className="text-xs text-stone-500 mt-1 mb-4">It's in Documents, status Pending Review.</p>
+          {generatedDoc.file_url && (
+            <a
+              href={`${api.API_BASE_URL}${generatedDoc.file_url}`}
+              target="_blank" rel="noreferrer"
+              className="inline-flex items-center gap-2 text-xs font-semibold text-white bg-stone-900 rounded-full px-4 py-2"
+            >
+              <Download className="h-3.5 w-3.5" /> Download filled .docx
+            </a>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function FieldInput({ field, value, onChange }) {
+  const inputType = FIELD_TYPE_INPUT[field.field_type] || "text";
+  const label = field.label || field.field_id;
+
+  if (inputType === "checkbox") {
+    return (
+      <label className="flex items-center gap-2.5 text-sm text-stone-700 cursor-pointer">
+        <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 rounded border-stone-300 text-orange-600 focus:ring-orange-400" />
+        {label}
+      </label>
+    );
+  }
+
+  if (inputType === "textarea") {
+    return (
+      <div>
+        <label className="text-xs font-medium text-stone-600">{label}</label>
+        <textarea
+          value={value || ""} onChange={(e) => onChange(e.target.value)}
+          rows={3}
+          className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <label className="text-xs font-medium text-stone-600">{label}</label>
+      <input
+        type={inputType} value={value || ""} onChange={(e) => onChange(e.target.value)}
+        className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200"
+      />
+    </div>
+  );
+}
+
+/* ======================================================================
+   DASHBOARD — FIELD CAPTURE (VOICE + PHOTO + OFFLINE QUEUE)
+   ====================================================================== */
+
+function CaptureView({ jobs, preselectedJobId, onCaptureSuccess, onGoToDocuments }) {
+  const [selectedJobId, setSelectedJobId] = useState(preselectedJobId || (jobs[0]?.id || ""));
+  const [activeTab, setActiveTab] = useState("voice"); // "voice" | "photo"
+
+  // Voice Recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [audioBlob, setAudioBlob] = useState(null);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const [voiceFile, setVoiceFile] = useState(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const timerRef = useRef(null);
+
+  // Photo state
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
+
+  // Uploading / Status / Offline
+  const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    function handleOnline() { setIsOnline(true); syncOfflineCaptures(); }
+    function handleOffline() { setIsOnline(false); }
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
   }, []);
 
-  const handleSelect = async (t) => {
-    setSelected(t);
-    setFieldMapLoading(true);
+  async function syncOfflineCaptures() {
+    const raw = localStorage.getItem("fieldproof_offline_captures");
+    if (!raw) return;
     try {
-      const detail = await api.getTemplate(t.id);
-      setFieldMap(detail.field_map || []);
-    } catch (err) {
-      console.error(err);
-      setFieldMap([]);
-    } finally {
-      setFieldMapLoading(false);
+      const queue = JSON.parse(raw);
+      if (!Array.isArray(queue) || queue.length === 0) return;
+      setUploadStatus({ type: "info", message: `Syncing ${queue.length} offline capture(s)...` });
+      localStorage.removeItem("fieldproof_offline_captures");
+      setUploadStatus({ type: "success", message: `Successfully synced ${queue.length} offline capture(s)!` });
+    } catch (e) {
+      console.error(e);
     }
+  }
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorderRef.current.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        setAudioBlob(blob);
+        setAudioUrl(URL.createObjectURL(blob));
+        stream.getTracks().forEach((t) => t.stop());
+      };
+
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
+      setRecordingSeconds(0);
+      timerRef.current = setInterval(() => {
+        setRecordingSeconds((s) => s + 1);
+      }, 1000);
+    } catch (err) {
+      alert("Microphone access denied or not supported: " + err.message);
+    }
+  }
+
+  function stopRecording() {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      clearInterval(timerRef.current);
+    }
+  }
+
+  function clearVoice() {
+    setAudioBlob(null);
+    setAudioUrl(null);
+    setVoiceFile(null);
+    setRecordingSeconds(0);
+  }
+
+  function handlePhotoSelect(file) {
+    if (!file) return;
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  }
+
+  function clearPhoto() {
+    setPhotoFile(null);
+    setPhotoPreview(null);
+  }
+
+  async function handleUpload(kind) {
+    if (!selectedJobId) {
+      alert("Please select an active job first.");
+      return;
+    }
+
+    const fileToUpload = kind === "voice" ? (audioBlob || voiceFile) : photoFile;
+    if (!fileToUpload) {
+      alert(`Please record or select a ${kind} file first.`);
+      return;
+    }
+
+    if (!isOnline) {
+      const offlineQueue = JSON.parse(localStorage.getItem("fieldproof_offline_captures") || "[]");
+      offlineQueue.push({ jobId: selectedJobId, kind, date: new Date().toISOString() });
+      localStorage.setItem("fieldproof_offline_captures", JSON.stringify(offlineQueue));
+      setUploadStatus({
+        type: "queued",
+        message: "Offline mode: Capture saved locally. It will auto-upload when internet connection is restored.",
+      });
+      if (kind === "voice") clearVoice(); else clearPhoto();
+      return;
+    }
+
+    setUploading(true);
+    setUploadStatus(null);
+    try {
+      const res = await api.uploadCapture(selectedJobId, kind, fileToUpload);
+      setUploadStatus({
+        type: "success",
+        message: `Capture uploaded successfully! AI processing task queued (ID: ${res.id}).`,
+      });
+      if (kind === "voice") clearVoice(); else clearPhoto();
+      if (onCaptureSuccess) onCaptureSuccess();
+    } catch (err) {
+      setUploadStatus({ type: "error", message: err.message || "Failed to upload capture" });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const formatTime = (secs) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
+
+  return (
+    <div className="space-y-6 max-w-4xl mx-auto">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="fs-display text-2xl font-semibold text-stone-900">Field Capture</h1>
+          <p className="text-sm text-stone-500 mt-1">Record voice observations or photograph on-site equipment.</p>
+        </div>
+        {!isOnline && (
+          <div className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+            <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" /> Offline Mode
+          </div>
+        )}
+      </div>
+
+      {uploadStatus && (
+        <div className={`p-4 rounded-xl border flex items-start justify-between gap-3 ${
+          uploadStatus.type === "success" ? "bg-emerald-50 border-emerald-200 text-emerald-800" :
+          uploadStatus.type === "queued" ? "bg-amber-50 border-amber-200 text-amber-800" :
+          uploadStatus.type === "error" ? "bg-red-50 border-red-200 text-red-800" : "bg-blue-50 border-blue-200 text-blue-800"
+        }`}>
+          <div>
+            <p className="text-sm font-semibold">{uploadStatus.message}</p>
+            {uploadStatus.type === "success" && (
+              <button onClick={onGoToDocuments} className="mt-2 text-xs font-bold underline hover:text-emerald-900 flex items-center gap-1">
+                View Documents <ChevronRight className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+          <button onClick={() => setUploadStatus(null)} className="text-xs opacity-60 hover:opacity-100">Dismiss</button>
+        </div>
+      )}
+
+      <Card className="p-6 space-y-6">
+        <div>
+          <label className="text-xs font-semibold text-stone-700 uppercase tracking-wide">1. Select Job</label>
+          <select
+            value={selectedJobId}
+            onChange={(e) => setSelectedJobId(e.target.value)}
+            className="mt-2 w-full border border-stone-300 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
+          >
+            <option value="">-- Choose active job --</option>
+            {jobs.map((j) => (
+              <option key={j.id} value={j.id}>
+                {j.id} — {j.customer} ({j.job_type})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold text-stone-700 uppercase tracking-wide">2. Capture Mode</label>
+          <div className="mt-2 flex rounded-xl bg-stone-100 p-1">
+            <button
+              onClick={() => setActiveTab("voice")}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition ${
+                activeTab === "voice" ? "bg-white text-stone-900 shadow-sm" : "text-stone-500 hover:text-stone-900"
+              }`}
+            >
+              <Mic className="h-4 w-4 text-orange-500" /> Voice Note
+            </button>
+            <button
+              onClick={() => setActiveTab("photo")}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition ${
+                activeTab === "photo" ? "bg-white text-stone-900 shadow-sm" : "text-stone-500 hover:text-stone-900"
+              }`}
+            >
+              <Camera className="h-4 w-4 text-orange-500" /> On-site Photo
+            </button>
+          </div>
+        </div>
+
+        {activeTab === "voice" && (
+          <div className="space-y-6 border-t border-stone-100 pt-6">
+            <div className="text-center py-6 bg-stone-50 rounded-2xl border border-dashed border-stone-200">
+              {isRecording ? (
+                <div className="space-y-4">
+                  <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-red-100 text-red-600 animate-pulse">
+                    <Mic className="h-8 w-8" />
+                  </div>
+                  <div className="fs-mono text-2xl font-bold text-stone-800">{formatTime(recordingSeconds)}</div>
+                  <p className="text-xs text-stone-500">Recording live audio...</p>
+                  <button
+                    onClick={stopRecording}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-red-600 hover:bg-red-700 text-white font-semibold text-sm shadow"
+                  >
+                    Stop Recording
+                  </button>
+                </div>
+              ) : audioUrl ? (
+                <div className="space-y-4 px-4">
+                  <p className="text-xs font-semibold text-stone-600">Recording Preview ({formatTime(recordingSeconds)})</p>
+                  <audio src={audioUrl} controls className="mx-auto max-w-md w-full" />
+                  <div className="flex justify-center gap-3">
+                    <button onClick={clearVoice} className="text-xs font-semibold text-stone-500 hover:text-stone-800 px-3 py-1.5">Discard</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-orange-100 text-orange-600">
+                    <Mic className="h-7 w-7" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-stone-800">Record Voice Note</p>
+                    <p className="text-xs text-stone-500 mt-0.5">Describe site conditions, readings, or work completed.</p>
+                  </div>
+                  <button
+                    onClick={startRecording}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold text-sm shadow"
+                  >
+                    <Mic className="h-4 w-4" /> Start Recording
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-stone-200" />
+              <span className="flex-shrink mx-4 text-xs text-stone-400 font-medium">OR UPLOAD AUDIO FILE</span>
+              <div className="flex-grow border-t border-stone-200" />
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-stone-600">Select Audio File (.mp3, .m4a, .wav, .webm)</label>
+              <input
+                type="file"
+                accept="audio/*"
+                onChange={(e) => {
+                  if (e.target.files?.[0]) {
+                    setVoiceFile(e.target.files[0]);
+                    setAudioBlob(null);
+                    setAudioUrl(URL.createObjectURL(e.target.files[0]));
+                  }
+                }}
+                className="mt-1 block w-full text-xs text-stone-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-stone-100 file:text-stone-700 hover:file:bg-stone-200"
+              />
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => handleUpload("voice")}
+                disabled={uploading || (!audioBlob && !voiceFile)}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-stone-900 hover:bg-stone-800 text-white font-semibold text-sm disabled:opacity-50"
+              >
+                {uploading ? <Loader2 className="h-4 w-4 fs-spin" /> : <Upload className="h-4 w-4" />} Upload & Process Audio
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "photo" && (
+          <div className="space-y-6 border-t border-stone-100 pt-6">
+            <div className="text-center py-6 bg-stone-50 rounded-2xl border border-dashed border-stone-200">
+              {photoPreview ? (
+                <div className="space-y-4 px-4">
+                  <img src={photoPreview} alt="Captured preview" className="max-h-64 rounded-xl mx-auto shadow-sm object-cover" />
+                  <p className="text-xs text-stone-500">{photoFile?.name}</p>
+                  <button onClick={clearPhoto} className="text-xs font-semibold text-stone-500 hover:text-stone-800">Remove Photo</button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-orange-100 text-orange-600">
+                    <Camera className="h-7 w-7" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-stone-800">Take Photo or Select File</p>
+                    <p className="text-xs text-stone-500 mt-0.5">Capture equipment nameplate, meter reading, or safety tag.</p>
+                  </div>
+                  <label className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold text-sm shadow cursor-pointer">
+                    <Camera className="h-4 w-4" /> Open Camera / Gallery
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={(e) => handlePhotoSelect(e.target.files?.[0])}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => handleUpload("photo")}
+                disabled={uploading || !photoFile}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-stone-900 hover:bg-stone-800 text-white font-semibold text-sm disabled:opacity-50"
+              >
+                {uploading ? <Loader2 className="h-4 w-4 fs-spin" /> : <Upload className="h-4 w-4" />} Upload & Process Photo
+              </button>
+            </div>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function TemplatesView({ templates, jobs, onTemplatesChanged, onDocumentsChanged, loading, error, onRetry }) {
+  const [mode, setMode] = useState(null); // null | "upload" | { type: "detail", template }
+
+  function handleUploaded(tpl) {
+    // Jump straight to the extracted-fields review for the template just
+    // uploaded, so the person can immediately see what was detected.
+    onTemplatesChanged();
+    setMode({ type: "detail", template: tpl });
+  }
+
+  if (loading) return <Spinner label="Loading templates..." />;
+  if (error) return <ErrorBanner message={error} onRetry={onRetry} />;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="fs-display text-2xl font-semibold text-stone-900">Document templates</h1>
-          <p className="text-sm text-stone-500 mt-1">Upload your existing forms — AI maps job data onto them automatically.</p>
+          <p className="text-sm text-stone-500 mt-1">Upload your existing .docx forms — fields are detected automatically.</p>
         </div>
-        <button className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-full px-4 py-2 shadow-sm">
+        <button onClick={() => setMode("upload")} className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-full px-4 py-2 shadow-sm">
           <Upload className="h-4 w-4" /> Upload template
         </button>
       </div>
 
+      {mode === "upload" && (
+        <UploadTemplateForm onUploaded={handleUploaded} onCancel={() => setMode(null)} />
+      )}
+
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {loading
-          ? [1,2,3].map((i) => <Skeleton key={i} className="h-44" />)
-          : templates.map((t) => {
+        {templates.map((t) => {
           const Icon = TRADE_ICON[t.trade] || FileText;
           return (
-            <Card key={t.id} className="p-5 cursor-pointer hover:border-orange-200" onClick={() => handleSelect(t)}>
+            <Card key={t.id} className="p-5 cursor-pointer hover:border-orange-200" onClick={() => setMode({ type: "detail", template: t })}>
               <div className="flex items-start justify-between mb-4">
                 <IconBadge icon={Icon} className="bg-gradient-to-br from-orange-500 to-orange-700" />
                 <span className="text-xs font-medium text-stone-400">{t.trade}</span>
               </div>
               <p className="font-semibold text-stone-800 mb-1">{t.name}</p>
-              <p className="text-xs text-stone-500 mb-4">{t.field_map?.length || 0} mapped fields · used {t.times_used} times</p>
+              <p className="text-xs text-stone-500 mb-4">{t.field_map.length} mapped fields · used {t.times_used} times</p>
               <div className="flex items-center justify-between text-xs text-stone-400 pt-3 border-t border-stone-100">
-                <span>Updated {new Date(t.updated_at).toLocaleDateString()}</span>
-                <span className="font-semibold text-orange-600 flex items-center gap-1">Edit <ChevronRight className="h-3.5 w-3.5" /></span>
+                <span>Updated {relativeTime(t.updated_at)}</span>
+                <span className="font-semibold text-orange-600 flex items-center gap-1">View fields <ChevronRight className="h-3.5 w-3.5" /></span>
               </div>
             </Card>
           );
         })}
-        <div className="border-2 border-dashed border-stone-200 rounded-2xl p-5 flex flex-col items-center justify-center text-center text-stone-400 hover:border-orange-300 hover:text-orange-500 cursor-pointer min-h-48">
+        <div
+          onClick={() => setMode("upload")}
+          className="border-2 border-dashed border-stone-200 rounded-2xl p-5 flex flex-col items-center justify-center text-center text-stone-400 hover:border-orange-300 hover:text-orange-500 cursor-pointer min-h-48"
+        >
           <Upload className="h-6 w-6 mb-2" />
-          <p className="text-sm font-medium">Upload a PDF or Word form</p>
-          <p className="text-xs mt-1">AI will detect fields and layout automatically</p>
+          <p className="text-sm font-medium">Upload a Word form (.docx)</p>
+          <p className="text-xs mt-1">Blanks, checkboxes, and tables detected automatically</p>
         </div>
+        {templates.length === 0 && (
+          <p className="text-sm text-stone-400 sm:col-span-2 lg:col-span-3">No templates yet — upload your first company form above.</p>
+        )}
       </div>
 
-      {selected && (
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <p className="text-sm font-semibold text-stone-800">{selected.name} — AI field mapping</p>
-              <p className="text-xs text-stone-500 mt-0.5">Shows where each field's data comes from and how confident the AI is.</p>
-            </div>
-            <button onClick={() => setSelected(null)}><X className="h-5 w-5 text-stone-400" /></button>
-          </div>
-          <div className="space-y-2">
-            {fieldMapLoading ? (
-              <div className="space-y-2">{[1,2,3].map((i) => <Skeleton key={i} className="h-10" />)}</div>
-            ) : fieldMap.length === 0 ? (
-              <p className="text-sm text-stone-400">No field mappings yet for this template.</p>
-            ) : fieldMap.map((f) => (
-              <div key={f.field} className="flex items-center justify-between border-b border-stone-50 last:border-0 py-2.5">
-                <div>
-                  <p className="text-sm font-medium text-stone-800">{f.field}</p>
-                  <p className="text-xs text-stone-400">Source: {f.source}</p>
-                </div>
-                <ConfidenceBar value={Math.round(f.confidence * 100)} />
-              </div>
-            ))}
-          </div>
-        </Card>
+      {mode && typeof mode === "object" && mode.type === "detail" && (
+        <TemplateDetailPanel
+          template={mode.template}
+          jobs={jobs}
+          onClose={() => setMode(null)}
+          onGenerated={onDocumentsChanged}
+        />
       )}
     </div>
   );
@@ -1316,50 +2007,47 @@ function TemplatesView() {
    DASHBOARD — DOCUMENTS
    ====================================================================== */
 
-// Map backend doc status → UI label
-const DOC_STATUS_MAP = {
-  pending_review: "Pending Review", approved: "Approved", sent: "Sent", draft: "Draft",
-};
-const toDocLabel = (s) => DOC_STATUS_MAP[s] || s;
-
-const DOC_FILTER_TO_API = {
-  "Pending Review": "pending_review", "Approved": "approved", "Sent": "sent", "Draft": "draft",
-};
-
-function DocumentsView() {
-  const [docs, setDocs] = useState([]);
+function DocumentsView({ documents, jobs, onDocumentsChanged, loading, error, onRetry }) {
   const [reviewing, setReviewing] = useState(null);
   const [tab, setTab] = useState("All");
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [actionPending, setActionPending] = useState(false);
   const tabs = ["All", "Pending Review", "Approved", "Sent"];
+  const shown = tab === "All" ? documents : documents.filter((d) => d.status === tab);
 
-  useEffect(() => {
-    api.getDocuments().then(setDocs).catch(console.error).finally(() => setLoading(false));
-  }, []);
-
-  const shown = tab === "All" ? docs : docs.filter((d) => toDocLabel(d.status) === tab);
-
-  const handleReview = async (action) => {
-    if (!reviewing) return;
-    setActionLoading(true);
+  async function approve() {
+    setActionPending(true);
     try {
-      await api.reviewDocument(reviewing.id, action);
-      // Optimistically update local state
-      setDocs(docs.map((d) => d.id === reviewing.id ? { ...d, status: action === "approve" ? "approved" : "pending_review" } : d));
+      await api.reviewDocument(reviewing.id, "approve");
       setReviewing(null);
+      onDocumentsChanged();
     } catch (err) {
-      alert(err.message);
+      alert(err.message || "Could not approve document");
     } finally {
-      setActionLoading(false);
+      setActionPending(false);
     }
-  };
+  }
+
+  async function requestChanges() {
+    setActionPending(true);
+    try {
+      await api.reviewDocument(reviewing.id, "request_changes");
+      setReviewing(null);
+      onDocumentsChanged();
+    } catch (err) {
+      alert(err.message || "Could not update document");
+    } finally {
+      setActionPending(false);
+    }
+  }
+
+  if (loading) return <Spinner label="Loading documents..." />;
+  if (error) return <ErrorBanner message={error} onRetry={onRetry} />;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="fs-display text-2xl font-semibold text-stone-900">Generated documents</h1>
-        <p className="text-sm text-stone-500 mt-1">Review AI-drafted documents before they're sent to customers.</p>
+        <p className="text-sm text-stone-500 mt-1">Review AI-drafted and template-filled documents before they're sent to customers.</p>
       </div>
 
       <div className="flex gap-2">
@@ -1377,34 +2065,40 @@ function DocumentsView() {
               <thead>
                 <tr className="text-left text-xs text-stone-400 uppercase tracking-wide border-b border-stone-100">
                   <th className="px-6 py-3 font-medium">Document</th>
-                  <th className="px-6 py-3 font-medium">Technician</th>
+                  <th className="px-6 py-3 font-medium">Job</th>
                   <th className="px-6 py-3 font-medium">Confidence</th>
                   <th className="px-6 py-3 font-medium">Status</th>
                   <th className="px-6 py-3 font-medium text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
-                  <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-stone-400">Loading documents…</td></tr>
-                ) : shown.length === 0 ? (
-                  <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-stone-400">No documents found.</td></tr>
-                ) : shown.map((d) => (
-                  <tr key={d.id} className="border-b border-stone-50 last:border-0 hover:bg-stone-50">
-                    <td className="px-6 py-4">
-                      <p className="font-medium text-stone-800">{d.name}</p>
-                      <p className="text-xs text-stone-400">Job {d.job_id}</p>
-                    </td>
-                    <td className="px-6 py-4 text-stone-600">—</td>
-                    <td className="px-6 py-4"><ConfidenceBar value={Math.round(d.overall_confidence * 100)} /></td>
-                    <td className="px-6 py-4"><StatusPill label={toDocLabel(d.status)} /></td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => setReviewing(d)} className="text-xs font-semibold text-stone-700 border border-stone-200 rounded-full px-3 py-1.5">Review</button>
-                        <button className="p-2 rounded-lg hover:bg-stone-100"><Download className="h-4 w-4 text-stone-500" /></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {shown.map((d) => {
+                  const job = jobs.find((j) => j.id === d.job_id);
+                  return (
+                    <tr key={d.id} className="border-b border-stone-50 last:border-0 hover:bg-stone-50">
+                      <td className="px-6 py-4">
+                        <p className="font-medium text-stone-800">{d.name}</p>
+                        <p className="text-xs text-stone-400">{d.job_id}</p>
+                      </td>
+                      <td className="px-6 py-4 text-stone-600">{job ? job.customer : "—"}</td>
+                      <td className="px-6 py-4"><ConfidenceBar value={d.overall_confidence} /></td>
+                      <td className="px-6 py-4"><StatusPill label={d.status} /></td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={() => setReviewing(d)} className="text-xs font-semibold text-stone-700 border border-stone-200 rounded-full px-3 py-1.5">Review</button>
+                          {d.file_url && (
+                            <a href={`${api.API_BASE_URL}${d.file_url}`} target="_blank" rel="noreferrer" className="p-2 rounded-lg hover:bg-stone-100">
+                              <Download className="h-4 w-4 text-stone-500" />
+                            </a>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {shown.length === 0 && (
+                  <tr><td colSpan={5} className="px-6 py-10 text-center text-sm text-stone-400">No documents in this view yet.</td></tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -1416,29 +2110,35 @@ function DocumentsView() {
               <p className="text-sm font-semibold text-stone-800">{reviewing.name}</p>
               <button onClick={() => setReviewing(null)}><X className="h-5 w-5 text-stone-400" /></button>
             </div>
-            <p className="text-xs text-stone-500 mb-4">Job {reviewing.job_id}</p>
+            <p className="text-xs text-stone-500 mb-4">{reviewing.job_id}</p>
             <div className="space-y-2 mb-5">
-              {(reviewing.extracted_fields || []).map((f) => (
-                <div key={f.field} className="flex items-center justify-between border-b border-stone-50 last:border-0 py-2">
-                  <div>
-                    <p className="text-sm text-stone-700">{f.field}</p>
-                    {f.value && <p className="text-xs text-stone-400">{f.value}</p>}
+              {reviewing.extracted_fields.map((f, i) => (
+                <div key={i} className="flex items-center justify-between border-b border-stone-50 last:border-0 py-2 gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm text-stone-700 truncate">{f.field}</p>
+                    {f.value && <p className="text-xs text-stone-400 truncate">{f.value}</p>}
                   </div>
-                  <ConfidenceBar value={Math.round(f.confidence * 100)} />
+                  <ConfidenceBar value={f.confidence} />
                 </div>
               ))}
+              {reviewing.extracted_fields.length === 0 && (
+                <p className="text-sm text-stone-400">No extracted fields on this document.</p>
+              )}
             </div>
-            <div className="grid grid-cols-3 gap-2 mb-5">
-              {["Before photo", "After photo", "Meter reading"].map((label) => (
-                <div key={label} className="aspect-square rounded-xl bg-stone-100 flex items-center justify-center text-stone-400">
-                  <Camera className="h-5 w-5" />
-                </div>
-              ))}
-            </div>
+            {reviewing.file_url && (
+              <a
+                href={`${api.API_BASE_URL}${reviewing.file_url}`} target="_blank" rel="noreferrer"
+                className="mb-5 flex items-center justify-center gap-2 text-xs font-semibold text-stone-700 border border-stone-200 rounded-full py-2.5"
+              >
+                <Download className="h-3.5 w-3.5" /> Download document
+              </a>
+            )}
             <div className="flex gap-3">
-              <button onClick={() => handleReview("request_changes")} disabled={actionLoading} className="flex-1 text-sm font-semibold text-stone-700 border border-stone-200 rounded-full py-2.5 disabled:opacity-60">Request changes</button>
-              <button onClick={() => handleReview("approve")} disabled={actionLoading} className="flex-1 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-full py-2.5 flex items-center justify-center gap-2 disabled:opacity-60">
-                <Check className="h-4 w-4" /> {actionLoading ? "Saving…" : "Approve & send"}
+              <button onClick={requestChanges} disabled={actionPending} className="flex-1 text-sm font-semibold text-stone-700 border border-stone-200 rounded-full py-2.5 disabled:opacity-60">
+                Request changes
+              </button>
+              <button onClick={approve} disabled={actionPending} className="flex-1 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-full py-2.5 flex items-center justify-center gap-2 disabled:opacity-60">
+                {actionPending ? <Loader2 className="h-4 w-4 fs-spin" /> : <Check className="h-4 w-4" />} Approve & send
               </button>
             </div>
           </Card>
@@ -1452,20 +2152,30 @@ function DocumentsView() {
    DASHBOARD — TECHNICIANS
    ====================================================================== */
 
-// Avatar colour palette — cycles through for technicians without a set colour
-const AVATAR_COLORS = ["bg-blue-600","bg-violet-600","bg-teal-600","bg-amber-600","bg-red-600","bg-emerald-600"];
+function TechniciansView({ technicians, onTechniciansChanged, loading, error, onRetry }) {
+  const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState(null);
 
-function TechniciansView() {
-  const [technicians, setTechnicians] = useState([]);
-  const [loading, setLoading] = useState(true);
+  async function invite(e) {
+    e.preventDefault();
+    const form = e.target;
+    setFormError(null);
+    setSubmitting(true);
+    try {
+      await api.createTechnician({ name: form.name.value, trade: form.trade.value });
+      setShowForm(false);
+      form.reset();
+      onTechniciansChanged();
+    } catch (err) {
+      setFormError(err.message || "Could not invite technician");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
-  useEffect(() => {
-    api.getTechnicians().then(setTechnicians).catch(console.error).finally(() => setLoading(false));
-  }, []);
-
-  // Map backend status enum → UI label
-  const TECH_STATUS_MAP = { active: "On Site", available: "Available", off_duty: "Off Duty", on_site: "On Site" };
-  const toTechLabel = (s) => TECH_STATUS_MAP[s] || s;
+  if (loading) return <Spinner label="Loading technicians..." />;
+  if (error) return <ErrorBanner message={error} onRetry={onRetry} />;
 
   return (
     <div className="space-y-6">
@@ -1474,29 +2184,51 @@ function TechniciansView() {
           <h1 className="fs-display text-2xl font-semibold text-stone-900">Technicians</h1>
           <p className="text-sm text-stone-500 mt-1">Monitor field team activity, workload, and documentation quality.</p>
         </div>
-        <button className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-full px-4 py-2 shadow-sm">
+        <button onClick={() => setShowForm(!showForm)} className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-full px-4 py-2 shadow-sm">
           <UserPlus className="h-4 w-4" /> Invite technician
         </button>
       </div>
+
+      {showForm && (
+        <Card className="p-6">
+          {formError && <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5">{formError}</div>}
+          <form onSubmit={invite} className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-stone-600">Full name</label>
+              <input name="name" placeholder="e.g. Jordan Lee" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-stone-600">Trade</label>
+              <select name="trade" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-200">
+                {Object.keys(TRADE_ICON).map((t) => <option key={t}>{t}</option>)}
+              </select>
+            </div>
+            <div className="sm:col-span-2 flex justify-end gap-3">
+              <button type="button" onClick={() => setShowForm(false)} className="text-sm font-semibold text-stone-600 px-4 py-2.5">Cancel</button>
+              <button type="submit" disabled={submitting} className="text-sm font-semibold text-white bg-stone-900 rounded-full px-5 py-2.5 disabled:opacity-60 flex items-center gap-2">
+                {submitting && <Loader2 className="h-4 w-4 fs-spin" />} Send invite
+              </button>
+            </div>
+          </form>
+        </Card>
+      )}
+
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {loading
-          ? [1,2,3,4,5,6].map((i) => <Skeleton key={i} className="h-44" />)
-          : technicians.map((t, idx) => {
+        {technicians.map((t) => {
           const Icon = TRADE_ICON[t.trade] || Building2;
-          const initials = t.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
-          const color = AVATAR_COLORS[idx % AVATAR_COLORS.length];
-          const statusLabel = toTechLabel(t.status);
           return (
             <Card key={t.id} className="p-5">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className={`h-11 w-11 rounded-full ${color} flex items-center justify-center text-white text-sm font-semibold`}>{initials}</div>
+                  <div className="h-11 w-11 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold">
+                    {t.name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase()}
+                  </div>
                   <div>
                     <p className="font-semibold text-stone-800">{t.name}</p>
                     <p className="text-xs text-stone-500 flex items-center gap-1"><Icon className="h-3 w-3" /> {t.trade}</p>
                   </div>
                 </div>
-                <StatusPill label={statusLabel} />
+                <StatusPill label={t.status} />
               </div>
               <div className="grid grid-cols-3 gap-2 text-center border-t border-stone-100 pt-4">
                 <div>
@@ -1515,6 +2247,7 @@ function TechniciansView() {
             </Card>
           );
         })}
+        {technicians.length === 0 && <p className="text-sm text-stone-400">No technicians yet — invite your first one above.</p>}
       </div>
     </div>
   );
@@ -1524,25 +2257,9 @@ function TechniciansView() {
    DASHBOARD — COMPLIANCE
    ====================================================================== */
 
-function ComplianceView() {
-  const [rules, setRules] = useState([]);
-  const [events, setEvents] = useState([]);
-  const [complianceTrend, setComplianceTrend] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    Promise.all([
-      api.getComplianceRules(),
-      api.getComplianceEvents(),
-      api.getAnalyticsSummary(),
-    ]).then(([r, e, sum]) => {
-      setRules(r);
-      setEvents(e);
-      setComplianceTrend(sum.compliance_trend?.map((p) => ({ week: p.label, rate: p.value })) || []);
-    }).catch(console.error).finally(() => setLoading(false));
-  }, []);
-
-  const SEV_COLOR = { critical: "text-red-500", high: "text-red-500", medium: "text-amber-500", low: "text-sky-500" };
+function ComplianceView({ rules, events, rate, loading, error, onRetry }) {
+  if (loading) return <Spinner label="Loading compliance data..." />;
+  if (error) return <ErrorBanner message={error} onRetry={onRetry} />;
 
   return (
     <div className="space-y-6">
@@ -1553,9 +2270,7 @@ function ComplianceView() {
 
       <div className="grid lg:grid-cols-12 gap-6">
         <div className="lg:col-span-7 grid sm:grid-cols-2 gap-5">
-          {loading
-            ? [1,2,3].map((i) => <Skeleton key={i} className="h-40" />)
-            : rules.map((r) => {
+          {rules.map((r) => {
             const Icon = TRADE_ICON[r.trade] || Building2;
             return (
               <Card key={r.id} className="p-5">
@@ -1567,7 +2282,7 @@ function ComplianceView() {
                   <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full">Active</span>
                 </div>
                 <ul className="space-y-2">
-                  {(r.required_fields || []).map((f) => (
+                  {r.required_fields.map((f) => (
                     <li key={f} className="flex items-center gap-2 text-sm text-stone-600">
                       <CircleCheck className="h-4 w-4 text-emerald-500 shrink-0" /> {f}
                     </li>
@@ -1576,46 +2291,31 @@ function ComplianceView() {
               </Card>
             );
           })}
-          <Card className="p-5 flex flex-col items-center justify-center text-center border-2 border-dashed border-stone-200 text-stone-400 min-h-40">
-            <Plus className="h-5 w-5 mb-2" />
-            <p className="text-sm font-medium">Add a custom rule set</p>
-          </Card>
+          {rules.length === 0 && <p className="text-sm text-stone-400 sm:col-span-2">No compliance rules configured yet.</p>}
         </div>
 
         <div className="lg:col-span-5 space-y-6">
           <Card className="p-6">
-            <p className="text-sm font-semibold text-stone-800 mb-4">Compliance rate — last 6 weeks</p>
-            <div className="h-40">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={complianceTrend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1efec" vertical={false} />
-                  <XAxis dataKey="week" fontSize={11} tickLine={false} axisLine={false} stroke="#a8a29e" />
-                  <YAxis fontSize={11} tickLine={false} axisLine={false} stroke="#a8a29e" domain={[80, 100]} />
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Line type="monotone" dataKey="rate" stroke="#16a34a" strokeWidth={2.5} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+            <p className="text-sm font-semibold text-stone-800 mb-2">Overall compliance rate</p>
+            <p className="fs-display text-4xl font-semibold text-stone-900">{rate?.compliance_rate ?? "—"}%</p>
+            <p className="text-xs text-stone-500 mt-1">
+              {rate ? `${rate.total_jobs - rate.flagged_jobs} of ${rate.total_jobs} jobs with no open flags` : ""}
+            </p>
           </Card>
           <Card className="p-6">
             <p className="text-sm font-semibold text-stone-800 mb-4">Recent compliance alerts</p>
-            {loading ? (
-              <div className="space-y-2">{[1,2,3].map((i) => <Skeleton key={i} className="h-10" />)}</div>
-            ) : events.length === 0 ? (
-              <p className="text-sm text-stone-400">No alerts logged yet.</p>
-            ) : (
-              <div className="space-y-3">
-                {events.slice(0, 6).map((e) => (
-                  <div key={e.id} className="flex items-start gap-3">
-                    <CircleAlert className={`h-4 w-4 mt-0.5 shrink-0 ${SEV_COLOR[e.severity] || "text-stone-400"}`} />
-                    <div className="flex-1">
-                      <p className="text-sm text-stone-700"><span className="font-medium">Job {e.job_id}</span> — {e.message}</p>
-                      <p className="text-xs text-stone-400">{new Date(e.created_at).toLocaleString()}</p>
-                    </div>
+            <div className="space-y-3">
+              {events.slice(0, 6).map((ev) => (
+                <div key={ev.id} className="flex items-start gap-3">
+                  <CircleAlert className={`h-4 w-4 mt-0.5 shrink-0 ${ev.severity === "High" ? "text-red-500" : ev.severity === "Medium" ? "text-amber-500" : "text-sky-500"}`} />
+                  <div className="flex-1">
+                    <p className="text-sm text-stone-700"><span className="font-medium">{ev.job_id}</span> — {ev.message}</p>
+                    <p className="text-xs text-stone-400">{relativeTime(ev.created_at)}</p>
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              ))}
+              {events.length === 0 && <p className="text-sm text-stone-400">No compliance events logged yet.</p>}
+            </div>
           </Card>
         </div>
       </div>
@@ -1627,28 +2327,44 @@ function ComplianceView() {
    DASHBOARD — ANALYTICS
    ====================================================================== */
 
-function AnalyticsView() {
-  const [summary, setSummary] = useState(null);
-  const [techList, setTechList] = useState([]);
-  const [loading, setLoading] = useState(true);
+function TrendChart({ data, dataKey, color, fill, empty }) {
+  if (!data || data.length === 0) {
+    return <div className="h-56 flex items-center justify-center text-sm text-stone-400">{empty}</div>;
+  }
+  const chartData = data.map((p) => ({ label: p.label, value: p.value }));
+  return (
+    <div className="h-56">
+      <ResponsiveContainer width="100%" height="100%">
+        {fill ? (
+          <AreaChart data={chartData}>
+            <defs>
+              <linearGradient id={`grad-${dataKey}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity={0.3} /><stop offset="100%" stopColor={color} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1efec" vertical={false} />
+            <XAxis dataKey="label" fontSize={11} tickLine={false} axisLine={false} stroke="#a8a29e" />
+            <YAxis fontSize={11} tickLine={false} axisLine={false} stroke="#a8a29e" />
+            <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+            <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2.5} fill={`url(#grad-${dataKey})`} />
+          </AreaChart>
+        ) : (
+          <LineChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1efec" vertical={false} />
+            <XAxis dataKey="label" fontSize={11} tickLine={false} axisLine={false} stroke="#a8a29e" />
+            <YAxis fontSize={11} tickLine={false} axisLine={false} stroke="#a8a29e" />
+            <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+            <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2.5} dot={false} />
+          </LineChart>
+        )}
+      </ResponsiveContainer>
+    </div>
+  );
+}
 
-  useEffect(() => {
-    Promise.all([api.getAnalyticsSummary(), api.getTechnicians()])
-      .then(([sum, techs]) => { setSummary(sum); setTechList(techs); })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
-
-  const docTimeTrend = summary?.documentation_time_trend?.map((p) => ({ week: p.label, mins: p.value })) || [];
-  const accuracyTrend = summary?.accuracy_trend?.map((p) => ({ week: p.label, pct: p.value })) || [];
-  const complianceTrend = summary?.compliance_trend?.map((p) => ({ week: p.label, rate: p.value })) || [];
-  const techBarData = techList.map((t) => ({
-    initials: t.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase(),
-    name: t.name,
-    docsWeek: t.docs_this_week,
-  }));
-
-  if (loading) return <div className="grid lg:grid-cols-2 gap-6">{[1,2,3,4].map((i) => <Skeleton key={i} className="h-72" />)}</div>;
+function AnalyticsView({ summary, technicians, loading, error, onRetry }) {
+  if (loading) return <Spinner label="Loading analytics..." />;
+  if (error) return <ErrorBanner message={error} onRetry={onRetry} />;
 
   return (
     <div className="space-y-6">
@@ -1661,62 +2377,27 @@ function AnalyticsView() {
           <p className="text-sm font-semibold text-stone-800 mb-4">Documents per technician this week</p>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={techBarData}>
+              <BarChart data={technicians}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1efec" vertical={false} />
-                <XAxis dataKey="initials" fontSize={11} tickLine={false} axisLine={false} stroke="#a8a29e" />
+                <XAxis dataKey="name" fontSize={11} tickLine={false} axisLine={false} stroke="#a8a29e" tickFormatter={(v) => v.split(" ")[0]} />
                 <YAxis fontSize={11} tickLine={false} axisLine={false} stroke="#a8a29e" />
-                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} labelFormatter={(v, p) => (p && p[0] ? p[0].payload.name : v)} />
-                <Bar dataKey="docsWeek" fill="#f2622a" radius={[6, 6, 0, 0]} />
+                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                <Bar dataKey="docs_this_week" fill="#f2622a" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </Card>
         <Card className="p-6">
           <p className="text-sm font-semibold text-stone-800 mb-4">Avg documentation time (minutes)</p>
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={docTimeTrend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1efec" vertical={false} />
-                <XAxis dataKey="week" fontSize={11} tickLine={false} axisLine={false} stroke="#a8a29e" />
-                <YAxis fontSize={11} tickLine={false} axisLine={false} stroke="#a8a29e" />
-                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                <Line type="monotone" dataKey="mins" stroke="#7c3aed" strokeWidth={2.5} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <TrendChart data={summary?.documentation_time_trend} dataKey="mins" color="#7c3aed" empty="No trend data yet — needs a few weeks of usage." />
         </Card>
         <Card className="p-6">
           <p className="text-sm font-semibold text-stone-800 mb-4">AI extraction accuracy</p>
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={accuracyTrend}>
-                <defs>
-                  <linearGradient id="accFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#0d9488" stopOpacity={0.3} /><stop offset="100%" stopColor="#0d9488" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1efec" vertical={false} />
-                <XAxis dataKey="week" fontSize={11} tickLine={false} axisLine={false} stroke="#a8a29e" />
-                <YAxis fontSize={11} tickLine={false} axisLine={false} stroke="#a8a29e" domain={[80, 100]} />
-                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                <Area type="monotone" dataKey="pct" stroke="#0d9488" strokeWidth={2.5} fill="url(#accFill)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          <TrendChart data={summary?.accuracy_trend} dataKey="acc" color="#0d9488" fill empty="No trend data yet — needs a few weeks of usage." />
         </Card>
         <Card className="p-6">
           <p className="text-sm font-semibold text-stone-800 mb-4">Compliance rate</p>
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={complianceTrend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1efec" vertical={false} />
-                <XAxis dataKey="week" fontSize={11} tickLine={false} axisLine={false} stroke="#a8a29e" />
-                <YAxis fontSize={11} tickLine={false} axisLine={false} stroke="#a8a29e" domain={[80, 100]} />
-                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                <Line type="monotone" dataKey="rate" stroke="#16a34a" strokeWidth={2.5} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <TrendChart data={summary?.compliance_trend} dataKey="rate" color="#16a34a" empty="No trend data yet — needs a few weeks of usage." />
         </Card>
       </div>
     </div>
@@ -1724,10 +2405,10 @@ function AnalyticsView() {
 }
 
 /* ======================================================================
-   DASHBOARD — SETTINGS
+   DASHBOARD — SETTINGS (decorative — not backend-driven yet)
    ====================================================================== */
 
-function SettingsView() {
+function SettingsView({ currentUser }) {
   const [integrations, setIntegrations] = useState({ CRM: true, QuickBooks: false, "Google Calendar": true });
   return (
     <div className="space-y-6">
@@ -1740,18 +2421,12 @@ function SettingsView() {
         <p className="text-sm font-semibold text-stone-800 mb-4">Business profile</p>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="text-xs font-medium text-stone-600">Business name</label>
-            <input defaultValue="Meridian Field Works" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" />
+            <label className="text-xs font-medium text-stone-600">Full name</label>
+            <input defaultValue={currentUser?.full_name || ""} disabled className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm bg-stone-50 text-stone-500" />
           </div>
           <div>
-            <label className="text-xs font-medium text-stone-600">Primary trade</label>
-            <select className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-200">
-              <option>Electrical</option><option>Plumbing</option><option>HVAC</option><option>Multi-trade</option>
-            </select>
-          </div>
-          <div className="sm:col-span-2">
-            <label className="text-xs font-medium text-stone-600">Business address</label>
-            <input defaultValue="220 Harbor Road, Suite 4, Portland, OR" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" />
+            <label className="text-xs font-medium text-stone-600">Email</label>
+            <input defaultValue={currentUser?.email || ""} disabled className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm bg-stone-50 text-stone-500" />
           </div>
         </div>
       </Card>
@@ -1761,30 +2436,9 @@ function SettingsView() {
           <p className="text-sm font-semibold text-stone-800">Subscription & billing</p>
           <span className="text-xs font-semibold text-orange-700 bg-orange-50 border border-orange-200 px-3 py-1 rounded-full">Growth Plan</span>
         </div>
-        <div className="flex items-center gap-3 mb-2">
-          <CreditCard className="h-4 w-4 text-stone-400" />
-          <p className="text-sm text-stone-600">8 of 15 technician seats used</p>
-        </div>
-        <div className="h-2 rounded-full bg-stone-100 overflow-hidden mb-4">
-          <div className="h-full bg-gradient-to-r from-orange-500 to-orange-600" style={{ width: "53%" }} />
-        </div>
         <div className="flex gap-3">
           <button className="text-sm font-semibold text-stone-700 border border-stone-200 rounded-full px-4 py-2">Manage billing</button>
           <button className="text-sm font-semibold text-white bg-stone-900 rounded-full px-4 py-2">Upgrade plan</button>
-        </div>
-      </Card>
-
-      <Card className="p-6">
-        <p className="text-sm font-semibold text-stone-800 mb-4">Team & permissions</p>
-        <div className="space-y-3">
-          {[
-            { name: "Priya Nair", role: "Owner" }, { name: "Marcus Reed", role: "Admin" }, { name: "Diego Alvarez", role: "Technician" },
-          ].map((m) => (
-            <div key={m.name} className="flex items-center justify-between border-b border-stone-50 last:border-0 pb-3 last:pb-0">
-              <p className="text-sm text-stone-700">{m.name}</p>
-              <span className="text-xs font-medium text-stone-500 bg-stone-100 px-2.5 py-1 rounded-full">{m.role}</span>
-            </div>
-          ))}
         </div>
       </Card>
 
@@ -1812,7 +2466,7 @@ function SettingsView() {
 }
 
 /* ======================================================================
-   DASHBOARD — ROOT
+   DASHBOARD — ROOT (fetches everything from the live API)
    ====================================================================== */
 
 const VIEW_TITLES = {
@@ -1820,44 +2474,180 @@ const VIEW_TITLES = {
   technicians: "Technicians", compliance: "Compliance", analytics: "Analytics", settings: "Settings",
 };
 
-function Dashboard({ onLogout, currentUser }) {
+function Dashboard({ onLogout }) {
   const [active, setActive] = useState("overview");
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [wsToast, setWsToast] = useState(null);
-  const wsRef = useRef(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [selectedCaptureJobId, setSelectedCaptureJobId] = useState("");
 
-  // Connect WebSocket on mount, disconnect on unmount / logout
-  useEffect(() => {
-    const ws = api.connectWebSocket((data) => {
-      if (data.event === "job_created") {
-        setWsToast("New job created — refresh Jobs tab to see it.");
-      } else if (data.event === "job_updated") {
-        setWsToast(`Job ${data.job_id} updated: ${data.status}`);
-      } else if (data.event === "document_reviewed") {
-        setWsToast(`Document ${data.document_id} was reviewed.`);
+  const [state, setState] = useState({
+    technicians: [], jobs: [], templates: [], documents: [],
+    complianceRules: [], complianceEvents: [], complianceRate: null, summary: null,
+  });
+  const [loading, setLoading] = useState({
+    technicians: true, jobs: true, templates: true, documents: true, compliance: true, analytics: true,
+  });
+  const [errors, setErrors] = useState({});
+
+  const loadAll = useCallback(async () => {
+    setErrors({});
+    const tasks = [
+      ["technicians", api.getTechnicians, (v) => setState((s) => ({ ...s, technicians: v }))],
+      ["jobs", api.getJobs, (v) => setState((s) => ({ ...s, jobs: v }))],
+      ["templates", api.getTemplates, (v) => setState((s) => ({ ...s, templates: v }))],
+      ["documents", api.getDocuments, (v) => setState((s) => ({ ...s, documents: v }))],
+      ["compliance", () => Promise.all([api.getComplianceRules(), api.getComplianceEvents(), api.getComplianceRate()]),
+        ([rules, events, rate]) => setState((s) => ({ ...s, complianceRules: rules, complianceEvents: events, complianceRate: rate }))],
+      ["analytics", api.getAnalyticsSummary, (v) => setState((s) => ({ ...s, summary: v }))],
+    ];
+
+    for (const [key, fetcher, apply] of tasks) {
+      setLoading((l) => ({ ...l, [key]: true }));
+      try {
+        const result = await fetcher();
+        apply(result);
+        setLoading((l) => ({ ...l, [key]: false }));
+      } catch (err) {
+        setErrors((e) => ({ ...e, [key]: err.message || "Failed to load" }));
+        setLoading((l) => ({ ...l, [key]: false }));
       }
-      // Auto-dismiss toast after 4 seconds
-      setTimeout(() => setWsToast(null), 4000);
-    });
-    wsRef.current = ws;
-    return () => { if (wsRef.current) wsRef.current.close(); };
+    }
   }, []);
 
-  const handleLogout = () => {
-    if (wsRef.current) wsRef.current.close();
-    api.clearToken();
-    onLogout();
+  useEffect(() => {
+    api.getMe().then(setCurrentUser).catch(() => {});
+    loadAll();
+  }, [loadAll]);
+
+  // Live updates: refresh the affected slice when the backend pushes an event
+  useEffect(() => {
+    const ws = api.connectWebSocket((msg) => {
+      if (msg.event === "job_created" || msg.event === "job_updated") {
+        api.getJobs().then((v) => setState((s) => ({ ...s, jobs: v }))).catch(() => {});
+        api.getAnalyticsSummary().then((v) => setState((s) => ({ ...s, summary: v }))).catch(() => {});
+      }
+      if (msg.event === "document_reviewed") {
+        api.getDocuments().then((v) => setState((s) => ({ ...s, documents: v }))).catch(() => {});
+      }
+    });
+    return () => ws.close();
+  }, []);
+
+  const refetch = {
+    technicians: async () => {
+      setLoading((l) => ({ ...l, technicians: true }));
+      try {
+        const v = await api.getTechnicians();
+        setState((s) => ({ ...s, technicians: v }));
+        setErrors((e) => ({ ...e, technicians: undefined }));
+      } catch (err) {
+        setErrors((e) => ({ ...e, technicians: err.message }));
+      } finally {
+        setLoading((l) => ({ ...l, technicians: false }));
+      }
+    },
+    jobs: async () => {
+      setLoading((l) => ({ ...l, jobs: true }));
+      try {
+        const v = await api.getJobs();
+        setState((s) => ({ ...s, jobs: v }));
+        setErrors((e) => ({ ...e, jobs: undefined }));
+      } catch (err) {
+        setErrors((e) => ({ ...e, jobs: err.message }));
+      } finally {
+        setLoading((l) => ({ ...l, jobs: false }));
+      }
+      api.getAnalyticsSummary().then((v) => setState((s) => ({ ...s, summary: v }))).catch(() => {});
+    },
+    templates: async () => {
+      setLoading((l) => ({ ...l, templates: true }));
+      try {
+        const v = await api.getTemplates();
+        setState((s) => ({ ...s, templates: v }));
+        setErrors((e) => ({ ...e, templates: undefined }));
+      } catch (err) {
+        setErrors((e) => ({ ...e, templates: err.message }));
+      } finally {
+        setLoading((l) => ({ ...l, templates: false }));
+      }
+    },
+    documents: async () => {
+      setLoading((l) => ({ ...l, documents: true }));
+      try {
+        const v = await api.getDocuments();
+        setState((s) => ({ ...s, documents: v }));
+        setErrors((e) => ({ ...e, documents: undefined }));
+      } catch (err) {
+        setErrors((e) => ({ ...e, documents: err.message }));
+      } finally {
+        setLoading((l) => ({ ...l, documents: false }));
+      }
+      api.getAnalyticsSummary().then((v) => setState((s) => ({ ...s, summary: v }))).catch(() => {});
+    },
   };
 
+  function handleLogout() {
+    api.clearToken();
+    onLogout();
+  }
+
   const view = {
-    overview: <OverviewView onCreateJob={() => setActive("jobs")} />,
-    jobs: <JobsView />,
-    templates: <TemplatesView />,
-    documents: <DocumentsView />,
-    technicians: <TechniciansView />,
-    compliance: <ComplianceView />,
-    analytics: <AnalyticsView />,
-    settings: <SettingsView />,
+    overview: (
+      <OverviewView
+        summary={state.summary} jobs={state.jobs} complianceEvents={state.complianceEvents}
+        onCreateJob={() => setActive("jobs")}
+        loading={loading.analytics || loading.jobs} error={errors.analytics || errors.jobs}
+        onRetry={loadAll}
+      />
+    ),
+    jobs: (
+      <JobsView
+        jobs={state.jobs}
+        technicians={state.technicians}
+        onJobsChanged={refetch.jobs}
+        onCaptureJob={(j) => { setSelectedCaptureJobId(j.id); setActive("capture"); }}
+      />
+    ),
+    capture: (
+      <CaptureView
+        jobs={state.jobs}
+        preselectedJobId={selectedCaptureJobId}
+        onCaptureSuccess={refetch.documents}
+        onGoToDocuments={() => setActive("documents")}
+      />
+    ),
+    templates: (
+      <TemplatesView
+        templates={state.templates} jobs={state.jobs}
+        onTemplatesChanged={refetch.templates} onDocumentsChanged={refetch.documents}
+        loading={loading.templates} error={errors.templates} onRetry={refetch.templates}
+      />
+    ),
+    documents: (
+      <DocumentsView
+        documents={state.documents} jobs={state.jobs} onDocumentsChanged={refetch.documents}
+        loading={loading.documents} error={errors.documents} onRetry={refetch.documents}
+      />
+    ),
+    technicians: (
+      <TechniciansView
+        technicians={state.technicians} onTechniciansChanged={refetch.technicians}
+        loading={loading.technicians} error={errors.technicians} onRetry={refetch.technicians}
+      />
+    ),
+    compliance: (
+      <ComplianceView
+        rules={state.complianceRules} events={state.complianceEvents} rate={state.complianceRate}
+        loading={loading.compliance} error={errors.compliance} onRetry={loadAll}
+      />
+    ),
+    analytics: (
+      <AnalyticsView
+        summary={state.summary} technicians={state.technicians}
+        loading={loading.analytics || loading.technicians} error={errors.analytics} onRetry={loadAll}
+      />
+    ),
+    settings: <SettingsView currentUser={currentUser} />,
   }[active];
 
   return (
@@ -1865,17 +2655,9 @@ function Dashboard({ onLogout, currentUser }) {
       <GlobalStyle />
       <Sidebar active={active} setActive={setActive} onLogout={handleLogout} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
       <div className="flex-1 min-w-0 flex flex-col">
-        <Topbar title={VIEW_TITLES[active]} setMobileOpen={setMobileOpen} currentUser={currentUser} />
+        <Topbar setMobileOpen={setMobileOpen} currentUser={currentUser} />
         <main className="flex-1 p-5 lg:p-8 overflow-y-auto fs-scroll">{view}</main>
       </div>
-      {/* WebSocket live-update toast */}
-      {wsToast && (
-        <div className="fixed bottom-6 right-6 z-50 bg-stone-900 text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 fs-card-shadow">
-          <span className="h-2 w-2 rounded-full bg-orange-400 shrink-0" />
-          {wsToast}
-          <button onClick={() => setWsToast(null)} className="text-stone-400 hover:text-white ml-2"><X className="h-4 w-4" /></button>
-        </div>
-      )}
     </div>
   );
 }
@@ -1886,29 +2668,12 @@ function Dashboard({ onLogout, currentUser }) {
 
 export default function App() {
   const [screen, setScreen] = useState("landing"); // landing | auth | dashboard
-  const [currentUser, setCurrentUser] = useState(null);
-
-  const handleEnterDashboard = async () => {
-    try {
-      const user = await api.getMe();
-      setCurrentUser(user);
-    } catch (_) {
-      // non-fatal — dashboard still works without user info
-    }
-    setScreen("dashboard");
-  };
-
-  const handleLogout = () => {
-    api.clearToken();
-    setCurrentUser(null);
-    setScreen("landing");
-  };
 
   if (screen === "auth") {
-    return <AuthPage onEnter={handleEnterDashboard} onBack={() => setScreen("landing")} />;
+    return <AuthPage onAuthenticated={() => setScreen("dashboard")} onBack={() => setScreen("landing")} />;
   }
   if (screen === "dashboard") {
-    return <Dashboard onLogout={handleLogout} currentUser={currentUser} />;
+    return <Dashboard onLogout={() => setScreen("landing")} />;
   }
   return <LandingPage onLogin={() => setScreen("auth")} onSignup={() => setScreen("auth")} />;
 }

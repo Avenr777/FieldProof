@@ -11,4 +11,6 @@ backend/__pycache__/
 backend/*.pyc
 *.env
 .env.example
+test
+fieldproof.db
 
