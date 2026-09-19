@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "FieldProof",
+    "slug": "fieldproof-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow FieldProof to take job-site photos."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow FieldProof to select job-site photos."
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow FieldProof to record job-site voice notes."
+        }
+      ],
+      "expo-secure-store",
+      "expo-status-bar"
+    ],
+    "android": {
+      "package": "com.fieldproof.mobile",
+      "permissions": [
+        "RECORD_AUDIO"
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "com.fieldproof.mobile"
+    }
+  }
+}

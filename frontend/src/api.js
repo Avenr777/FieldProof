@@ -14,7 +14,10 @@
  * See README.md § "Authentication & token storage" for details.
  */
 
-const BASE_URL = "http://localhost:8000";
+// Both the dashboard and mobile client use this same FastAPI database gateway.
+// VITE_API_URL is useful when the dashboard is hosted separately; local dev
+// keeps working without an environment file.
+const BASE_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 export const API_BASE_URL = BASE_URL;
 
 // ─── In-memory token store ────────────────────────────────────────────────────

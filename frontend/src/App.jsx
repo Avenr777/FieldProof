@@ -2519,6 +2519,14 @@ function Dashboard({ onLogout }) {
     loadAll();
   }, [loadAll]);
 
+  // The dashboard's WebSocket handles immediate job/document events. Polling
+  // closes the gap for asynchronous Celery processing and changes submitted
+  // from the mobile app, which writes to the same database through /capture.
+  useEffect(() => {
+    const syncTimer = window.setInterval(loadAll, 20000);
+    return () => window.clearInterval(syncTimer);
+  }, [loadAll]);
+
   // Live updates: refresh the affected slice when the backend pushes an event
   useEffect(() => {
     const ws = api.connectWebSocket((msg) => {

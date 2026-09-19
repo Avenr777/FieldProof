@@ -30,8 +30,13 @@ class Settings(BaseSettings):
     storage_bucket: str = "fieldproof-uploads"
     storage_region: str = "us-east-1"
 
-    # CORS - the Vite dev server origin by default
-    cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    # Browser dashboard plus Expo Web's default development origin.
+    cors_origins: list[str] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8081",
+        "http://127.0.0.1:8081",
+    ]
 
     # AI Model Providers
     openai_api_key: str | None = None

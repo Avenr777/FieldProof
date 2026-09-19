@@ -14,3 +14,8 @@ backend/*.pyc
 test
 fieldproof.db
 
+
+__pycache__/
+*.pyc
+.freebuff/
+backend/uploads/

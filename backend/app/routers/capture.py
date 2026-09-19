@@ -42,11 +42,27 @@ async def create_capture(
 
     # Deferred import avoids requiring a running Redis instance just to
     # import the FastAPI app (e.g. when running tests without a worker).
-    try:
+    # The enqueue must never hang the HTTP response: bounded by Celery's
+    # fail-fast broker settings plus a hard watchdog here. The pool is shut
+    # down without waiting so a stuck connect() can't block the response.
+    import concurrent.futures
+    import logging
+
+    def _enqueue() -> None:
         from app.tasks import process_capture
         process_capture.delay(capture.id)
+
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    try:
+        future = pool.submit(_enqueue)
+        future.result(timeout=5)
+    except concurrent.futures.TimeoutError:
+        logging.getLogger("fieldproof.capture").warning(
+            f"Celery enqueue timed out after 5s (Redis offline?); capture {capture.id} saved without processing"
+        )
     except Exception as e:
-        import logging
         logging.getLogger("fieldproof.capture").warning(f"Could not enqueue Celery task (Redis offline?): {e}")
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
 
     return schemas.CaptureCreated(id=capture.id, job_id=job_id, kind=kind)
