@@ -59,3 +59,30 @@ def compliance_rate(
 
     rate = 100.0 if total_jobs == 0 else round(100 * (total_jobs - flagged_jobs) / total_jobs, 1)
     return {"total_jobs": total_jobs, "flagged_jobs": flagged_jobs, "compliance_rate": rate}
+
+
+@router.get("/events/recurring", response_model=list[schemas.RecurringComplianceEventOut])
+def list_recurring_events(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    results = (
+        db.query(
+            models.ComplianceEvent.message,
+            models.ComplianceEvent.severity,
+            func.count(models.ComplianceEvent.id).label("count"),
+        )
+        .join(models.Job, models.Job.id == models.ComplianceEvent.job_id)
+        .filter(models.Job.business_id == current_user.business_id)
+        .group_by(models.ComplianceEvent.message, models.ComplianceEvent.severity)
+        .order_by(func.count(models.ComplianceEvent.id).desc())
+        .limit(10)
+        .all()
+    )
+
+    out = []
+    for r in results:
+        sev_val = r.severity.value if hasattr(r.severity, "value") else str(r.severity)
+        out.append(schemas.RecurringComplianceEventOut(message=r.message, severity=sev_val, count=r.count))
+    return out
+

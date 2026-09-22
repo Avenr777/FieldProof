@@ -12,15 +12,11 @@ export type Template = {
   trade: string;
   field_map: TemplateFieldMapping[];
   times_used: number;
-  technician_id: string | null;
-  assigned_at: string | null;
+  technician_id?: string | null;
+  assigned_at?: string | null;
+  assigned_technician_ids?: string[];
   updated_at: string;
 };
-
-/** Templates the operator assigned to the signed-in technician (first page). */
-export function getMyTemplates(): Promise<Template[]> {
-  return request<Template[]>("/templates/my");
-}
 
 export type CaptureSession = {
   job_id: string;
@@ -29,11 +25,43 @@ export type CaptureSession = {
   technician_id: string | null;
 };
 
-/** Opens a capture session against an assigned template (auto-creates the grouping job). */
+export function getMyTemplates(): Promise<Template[]> {
+  return request<Template[]>("/templates/my");
+}
+
+export async function getAssignedTemplates(): Promise<Template[]> {
+  return request<Template[]>("/templates/assigned");
+}
+
 export function startCaptureSession(templateId: string): Promise<CaptureSession> {
   return request<CaptureSession>("/capture/start", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ template_id: templateId }),
+  });
+}
+
+export interface TemplateField {
+  field_id: string;
+  label?: string;
+  field_type?: string;
+  kind?: string;
+  locator?: any;
+}
+
+export interface TemplateExtraction {
+  fields: TemplateField[];
+  statistics?: any;
+}
+
+export async function getTemplateFields(templateId: string): Promise<TemplateExtraction> {
+  return request<TemplateExtraction>(`/templates/${templateId}/fields`);
+}
+
+export async function fillTemplate(templateId: string, jobId: string, values: Record<string, any>) {
+  return request<any>(`/templates/${templateId}/fill`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ job_id: jobId, values }),
   });
 }

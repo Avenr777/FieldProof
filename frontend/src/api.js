@@ -107,6 +107,37 @@ export async function getMe() {
   return apiFetch("/auth/me");
 }
 
+export async function updateMe(payload) {
+  return apiFetch("/auth/me", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getBusiness() {
+  return apiFetch("/auth/business");
+}
+
+export async function updateBusiness(payload) {
+  return apiFetch("/auth/business", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+// ─── Integrations ─────────────────────────────────────────────────────────────
+
+export async function getIntegrations() {
+  return apiFetch("/integrations");
+}
+
+export async function updateIntegration(name, enabled, config = null) {
+  return apiFetch(`/integrations/${encodeURIComponent(name)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ enabled, config }),
+  });
+}
+
 // ─── Jobs ─────────────────────────────────────────────────────────────────────
 
 /**
@@ -116,6 +147,10 @@ export async function getMe() {
 export async function getJobs(statusFilter = null) {
   const qs = statusFilter ? `?status=${encodeURIComponent(statusFilter)}` : "";
   return apiFetch(`/jobs${qs}`);
+}
+
+export async function getJobDetail(jobId) {
+  return apiFetch(`/jobs/${jobId}`);
 }
 
 /**
@@ -132,7 +167,7 @@ export async function createJob(payload) {
 /**
  * Update a job's status, technician, or notes.
  * @param {string} jobId
- * @param {{ status, technician_id, notes }} payload
+ * @param {{ status, technician_id, notes, customer, site_address }} payload
  */
 export async function updateJob(jobId, payload) {
   return apiFetch(`/jobs/${jobId}`, {
@@ -162,13 +197,15 @@ export async function createTechnician(payload) {
   });
 }
 
-/**
- * Drill-down for one technician: their uploads (captures) and the status of
- * every document generated from their work.
- * @param {string} technicianId
- */
 export async function getTechnicianDetail(technicianId) {
   return apiFetch(`/technicians/${technicianId}/detail`);
+}
+
+export async function updateTechnician(techId, payload) {
+  return apiFetch(`/technicians/${techId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
 }
 
 // ─── Templates ───────────────────────────────────────────────────────────────
@@ -195,16 +232,29 @@ export async function getTemplate(templateId) {
 }
 
 /**
- * Assign (or unassign) a template to one technician. The technician sees it
- * as their capture form in the mobile app; pass null to unassign.
+ * Assign (or unassign) a template for one or many technicians. The older
+ * single-assignment format is still supported for compatibility with the
+ * mobile technician flow; the newer dashboard flow sends an array.
  * @param {string} templateId
- * @param {string|null} technicianId
+ * @param {string|string[]|null} technicianIdsOrId
  */
-export async function assignTemplate(templateId, technicianId) {
+export async function assignTemplate(templateId, technicianIdsOrId) {
+  const payload = Array.isArray(technicianIdsOrId)
+    ? { technician_ids: technicianIdsOrId }
+    : { technician_id: technicianIdsOrId ?? null };
+
   return apiFetch(`/templates/${templateId}/assign`, {
     method: "POST",
-    body: JSON.stringify({ technician_id: technicianId }),
+    body: JSON.stringify(payload),
   });
+}
+
+/**
+ * Delete a template by ID.
+ * @param {string} templateId
+ */
+export async function deleteTemplate(templateId) {
+  return apiFetch(`/templates/${templateId}`, { method: "DELETE" });
 }
 
 /**
@@ -291,6 +341,14 @@ export async function getDocuments() {
   return apiFetch("/documents");
 }
 
+export async function searchDocuments(query) {
+  return apiFetch(`/documents/search?q=${encodeURIComponent(query)}`);
+}
+
+export async function getDocumentHistory(docId) {
+  return apiFetch(`/documents/${docId}/history`);
+}
+
 /**
  * Approve or request changes on a document.
  * @param {string} docId
@@ -321,6 +379,11 @@ export async function getComplianceRules() {
 export async function getComplianceEvents() {
   return apiFetch("/compliance/events");
 }
+
+export async function getRecurringComplianceEvents() {
+  return apiFetch("/compliance/events/recurring");
+}
+
 
 /**
  * Get the overall compliance rate for the business.

@@ -4,9 +4,10 @@ import {
   Search, Bell, ChevronDown, ChevronRight, Mic, Camera, ScanLine, Plus, Upload, Download, Send,
   Check, AlertTriangle, TrendingUp, TrendingDown, X, ArrowRight, Play, Star, LogOut, Menu,
   MoreHorizontal, MapPin, Clock, Zap, Building2, Flame, Wrench, Sun, Radio, ClipboardCheck,
-  CircleCheck, CircleAlert, Eye, UserPlus, CreditCard, Puzzle, ToggleLeft, Sparkles, Gauge,
+  CircleCheck, CircleAlert, Eye, UserPlus, UserCheck, CreditCard, Puzzle, ToggleLeft, Sparkles, Gauge,
   ListChecks, CalendarDays, Filter, ArrowUpRight, ArrowDownRight, HardHat, Droplets, Thermometer,
   PhoneCall, Quote, Loader2, FileUp, Pencil, Square, Volume2, Wifi, WifiOff, Trash2,
+  Calendar, CheckSquare, AlignLeft, Hash, AtSign, Phone, DollarSign, Percent, Table, Tag,
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -844,7 +845,7 @@ function Topbar({ setMobileOpen, currentUser }) {
    ====================================================================== */
 
 function OverviewView({ summary, jobs, complianceEvents, onCreateJob, loading, error, onRetry }) {
-  if (loading) return <Spinner label="Loading overview..." />;
+  if (loading && !summary && jobs.length === 0) return <Spinner label="Loading overview..." />;
   if (error) return <ErrorBanner message={error} onRetry={onRetry} />;
 
   const statCards = [
@@ -991,13 +992,170 @@ function OverviewView({ summary, jobs, complianceEvents, onCreateJob, loading, e
    DASHBOARD — JOBS
    ====================================================================== */
 
-function JobsView({ jobs, technicians, onJobsChanged, onCaptureJob }) {
+function JobDetailModal({ job, technicians, documents = [], complianceEvents = [], onClose, onJobsChanged }) {
+  const [status, setStatus] = useState(job.status);
+  const [techId, setTechId] = useState(job.technician_id || "");
+  const [updating, setUpdating] = useState(false);
+  const [updateError, setUpdateError] = useState(null);
+
+  const linkedDocs = documents.filter((d) => d.job_id === job.id);
+  const linkedAlerts = complianceEvents.filter((ev) => ev.job_id === job.id);
+
+  async function handleStatusChange(newStatus) {
+    setStatus(newStatus);
+    setUpdating(true);
+    setUpdateError(null);
+    try {
+      await api.updateJob(job.id, { status: newStatus });
+      if (onJobsChanged) onJobsChanged();
+    } catch (err) {
+      setUpdateError(err.message || "Could not update status");
+    } finally {
+      setUpdating(false);
+    }
+  }
+
+  async function handleTechChange(newTechId) {
+    setTechId(newTechId);
+    setUpdating(true);
+    setUpdateError(null);
+    try {
+      await api.updateJob(job.id, { technician_id: newTechId || null });
+      if (onJobsChanged) onJobsChanged();
+    } catch (err) {
+      setUpdateError(err.message || "Could not reassign technician");
+    } finally {
+      setUpdating(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+      <Card className="max-w-2xl w-full p-6 space-y-6 max-h-[90vh] overflow-y-auto fs-scroll">
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="fs-mono text-xs font-semibold text-stone-400">{job.id}</span>
+              <StatusPill label={status} />
+            </div>
+            <h2 className="fs-display text-xl font-semibold text-stone-900 mt-1">{job.customer}</h2>
+            <p className="text-xs text-stone-500">{job.job_type} · {job.site_address || "No site address provided"}</p>
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-stone-100 rounded-lg text-stone-400"><X className="h-5 w-5" /></button>
+        </div>
+
+        {updateError && (
+          <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl p-3 flex items-center justify-between">
+            <span>{updateError}</span>
+            <button onClick={() => setUpdateError(null)} className="font-bold">×</button>
+          </div>
+        )}
+
+        <div className="grid sm:grid-cols-2 gap-4 bg-stone-50 p-4 rounded-xl border border-stone-200">
+          <div>
+            <label className="text-xs font-semibold text-stone-700 block mb-1">Update Job Status</label>
+            <select
+              value={status}
+              disabled={updating}
+              onChange={(e) => handleStatusChange(e.target.value)}
+              className="w-full text-xs border border-stone-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
+            >
+              <option value="Scheduled">Scheduled</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Awaiting Review">Awaiting Review</option>
+              <option value="Compliance Flag">Compliance Flag</option>
+              <option value="Completed">Completed</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-stone-700 block mb-1">Assign Technician</label>
+            <select
+              value={techId}
+              disabled={updating}
+              onChange={(e) => handleTechChange(e.target.value)}
+              className="w-full text-xs border border-stone-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
+            >
+              <option value="">Unassigned</option>
+              {technicians.map((t) => (
+                <option key={t.id} value={t.id}>{t.name} ({t.trade})</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {job.notes && (
+          <div>
+            <p className="text-xs font-semibold text-stone-700 uppercase tracking-wide mb-1">Notes</p>
+            <p className="text-sm text-stone-600 bg-white border border-stone-200 rounded-xl p-3.5 leading-relaxed">{job.notes}</p>
+          </div>
+        )}
+
+        {linkedAlerts.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-red-700 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+              <AlertTriangle className="h-4 w-4 text-red-500" /> Compliance Alerts ({linkedAlerts.length})
+            </p>
+            <div className="space-y-2">
+              {linkedAlerts.map((ev) => (
+                <div key={ev.id} className="text-xs bg-red-50 border border-red-200 text-red-800 rounded-xl p-3 flex items-start justify-between">
+                  <div>
+                    <p className="font-semibold">{ev.message}</p>
+                    <p className="text-[11px] text-red-600 mt-0.5">{relativeTime(ev.created_at)}</p>
+                  </div>
+                  <SeverityTag level={ev.severity} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div>
+          <p className="text-xs font-semibold text-stone-700 uppercase tracking-wide mb-2">Linked Documents ({linkedDocs.length})</p>
+          {linkedDocs.length === 0 ? (
+            <p className="text-xs text-stone-400 italic bg-stone-50 p-3 rounded-xl border border-stone-100">No documents generated for this job yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {linkedDocs.map((d) => (
+                <div key={d.id} className="flex items-center justify-between border border-stone-200 rounded-xl p-3 bg-white">
+                  <div>
+                    <p className="text-xs font-semibold text-stone-800">{d.name}</p>
+                    <p className="text-[11px] text-stone-400">{d.id} · <StatusPill label={d.status} /></p>
+                  </div>
+                  {d.file_url && (
+                    <a
+                      href={`${api.API_BASE_URL}${d.file_url}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-orange-600 hover:text-orange-700 bg-orange-50 border border-orange-200 px-3 py-1.5 rounded-full"
+                    >
+                      <Download className="h-3.5 w-3.5" /> Download
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end pt-2 border-t border-stone-100">
+          <button onClick={onClose} className="px-5 py-2 rounded-full bg-stone-900 text-white text-xs font-semibold">
+            Close
+          </button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function JobsView({ jobs, technicians, documents = [], complianceEvents = [], onJobsChanged, onCaptureJob }) {
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState("All");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
+  const [selectedJob, setSelectedJob] = useState(null);
 
-  const filters = ["All", "Scheduled", "In Progress", "Awaiting Review", "Compliance Flag", "Completed"];
+  const filters = ["All", "Scheduled", "In Progress", "Awaiting Review", "Compliance Flag", "Completed", "Cancelled"];
   const shown = filter === "All" ? jobs : jobs.filter((j) => j.status === filter);
 
   async function addJob(e) {
@@ -1034,6 +1192,17 @@ function JobsView({ jobs, technicians, onJobsChanged, onCaptureJob }) {
           <Plus className="h-4 w-4" /> New job
         </button>
       </div>
+
+      {selectedJob && (
+        <JobDetailModal
+          job={selectedJob}
+          technicians={technicians}
+          documents={documents}
+          complianceEvents={complianceEvents}
+          onClose={() => setSelectedJob(null)}
+          onJobsChanged={onJobsChanged}
+        />
+      )}
 
       {showForm && (
         <Card className="p-6">
@@ -1120,7 +1289,13 @@ function JobsView({ jobs, technicians, onJobsChanged, onCaptureJob }) {
                             <Camera className="h-3.5 w-3.5" /> Capture
                           </button>
                         )}
-                        <button className="p-2 rounded-lg hover:bg-stone-100"><Eye className="h-4 w-4 text-stone-500" /></button>
+                        <button
+                          onClick={() => setSelectedJob(j)}
+                          className="p-2 rounded-lg hover:bg-stone-100 text-stone-500 hover:text-stone-900"
+                          title="View job details"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -1139,6 +1314,7 @@ function JobsView({ jobs, technicians, onJobsChanged, onCaptureJob }) {
     </div>
   );
 }
+
 
 /* ======================================================================
    DASHBOARD — TEMPLATES  (the main event: real .docx upload + review + fill)
@@ -1367,46 +1543,98 @@ function TemplateFieldsList({ fields, templateId, onFieldUpdated, canEdit = true
   );
 }
 
-function TemplateDetailPanel({ template, jobs, onClose, onGenerated, currentUser, technicians = [], onAssigned }) {
+function TemplateDetailPanel({
+  template,
+  jobs,
+  technicians = [],
+  onClose,
+  onDelete,
+  onGenerated,
+  onTemplatesChanged,
+  onAssigned,
+  currentUser,
+  showFillForm,
+  setShowFillForm,
+  values,
+  setValues,
+  jobId,
+  setJobId,
+  generatedDoc,
+  setGeneratedDoc,
+}) {
   const [fieldsData, setFieldsData] = useState(null);
   const [fieldsLoading, setFieldsLoading] = useState(true);
   const [fieldsError, setFieldsError] = useState(null);
-  const [showFillForm, setShowFillForm] = useState(false);
-  const [values, setValues] = useState({});
-  const [jobId, setJobId] = useState("");
   const [filling, setFilling] = useState(false);
   const [fillError, setFillError] = useState(null);
-  const [generatedDoc, setGeneratedDoc] = useState(null);
-  const [assignedTo, setAssignedTo] = useState(template.technician_id || "");
-  const [assigning, setAssigning] = useState(false);
+  const [assignedTechIds, setAssignedTechIds] = useState(
+    template.assigned_technician_ids || (template.technician_id ? [template.technician_id] : [])
+  );
+  const [savingAssign, setSavingAssign] = useState(false);
+  const [assignSuccess, setAssignSuccess] = useState(false);
   const [assignError, setAssignError] = useState(null);
 
+  useEffect(() => {
+    setAssignedTechIds(template.assigned_technician_ids || (template.technician_id ? [template.technician_id] : []));
+  }, [template]);
+
   async function handleAssign(technicianId) {
-    setAssigning(true);
+    const nextIds = technicianId ? [technicianId] : [];
+    setAssignedTechIds(nextIds);
     setAssignError(null);
+    setSavingAssign(true);
     try {
-      const updated = await api.assignTemplate(template.id, technicianId || null);
-      setAssignedTo(updated.technician_id || "");
+      const updated = await api.assignTemplate(template.id, nextIds);
+      if (updated?.assigned_technician_ids) {
+        setAssignedTechIds(updated.assigned_technician_ids);
+      }
       if (onAssigned) onAssigned();
+      if (onTemplatesChanged) onTemplatesChanged();
     } catch (err) {
       setAssignError(err.message || "Could not assign template");
     } finally {
-      setAssigning(false);
+      setSavingAssign(false);
     }
+  }
+
+  async function handleSaveAssignment() {
+    setSavingAssign(true);
+    setAssignSuccess(false);
+    setAssignError(null);
+    try {
+      await api.assignTemplate(template.id, assignedTechIds);
+      setAssignSuccess(true);
+      if (onTemplatesChanged) onTemplatesChanged();
+      if (onAssigned) onAssigned();
+      setTimeout(() => setAssignSuccess(false), 3000);
+    } catch (err) {
+      setAssignError(err.message || "Failed to update assignments");
+    } finally {
+      setSavingAssign(false);
+    }
+  }
+
+  function toggleTechAssignment(techId) {
+    setAssignedTechIds((prev) =>
+      prev.includes(techId) ? prev.filter((id) => id !== techId) : [...prev, techId]
+    );
   }
 
   useEffect(() => {
     let cancelled = false;
     setFieldsLoading(true);
     setFieldsError(null);
+    // Only reset fill-form state when the template actually changes
     setGeneratedDoc(null);
     setShowFillForm(false);
+    setValues({});
+    setJobId("");
     api.getTemplateFields(template.id)
       .then((data) => { if (!cancelled) setFieldsData(data); })
       .catch((err) => { if (!cancelled) setFieldsError(err.message || "Could not load fields"); })
       .finally(() => { if (!cancelled) setFieldsLoading(false); });
     return () => { cancelled = true; };
-  }, [template.id]);
+  }, [template.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleFieldUpdated(updatedField, newExtraction) {
     if (newExtraction) {
@@ -1425,6 +1653,13 @@ function TemplateDetailPanel({ template, jobs, onClose, onGenerated, currentUser
 
   function setValue(fieldId, value) {
     setValues((prev) => ({ ...prev, [fieldId]: value }));
+  }
+
+  // Exposed for parent: reset fill form (used by chain auto-fill)
+  function resetFillForm(newValues) {
+    setShowFillForm(true);
+    setGeneratedDoc(null);
+    setValues(newValues || {});
   }
 
   async function handleGenerate() {
@@ -1454,23 +1689,34 @@ function TemplateDetailPanel({ template, jobs, onClose, onGenerated, currentUser
         <p className="text-sm font-semibold text-stone-800">
           {template.name} {showFillForm ? "— fill & generate" : "— extracted fields"}
         </p>
-        <button onClick={onClose}><X className="h-5 w-5 text-stone-400" /></button>
+        <div className="flex items-center gap-2">
+          {onDelete && currentUser?.role !== "Technician" && (
+            <button
+              type="button"
+              onClick={() => onDelete(template)}
+              className="p-1 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+              title="Delete template"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+          <button type="button" onClick={onClose}><X className="h-5 w-5 text-stone-400" /></button>
+        </div>
       </div>
       <p className="text-xs text-stone-500 mb-5">
         {showFillForm ? "Fields detected automatically from the uploaded .docx form." : "Every blank, checkbox, and table field found in the uploaded document. Click the pencil icon to edit field labels or types."}
       </p>
 
-      {/* --- Assignment: the one technician who sees this form in the mobile app --- */}
       {!showFillForm && (
         <div className="mb-5 border border-stone-100 bg-stone-50/60 rounded-xl px-4 py-3.5">
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 min-w-0">
               <UserPlus className="h-4 w-4 text-orange-600 shrink-0" />
-              <p className="text-sm font-semibold text-stone-700">Assigned technician</p>
+              <p className="text-sm font-semibold text-stone-700">Assigned technician(s)</p>
             </div>
             <select
-              value={assignedTo}
-              disabled={assigning}
+              value={assignedTechIds[0] || ""}
+              disabled={savingAssign}
               onChange={(e) => handleAssign(e.target.value)}
               className="text-sm border border-stone-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200 max-w-56"
             >
@@ -1479,12 +1725,12 @@ function TemplateDetailPanel({ template, jobs, onClose, onGenerated, currentUser
                 <option key={t.id} value={t.id}>{t.name} · {t.trade}</option>
               ))}
             </select>
-            {assignedTo && (
+            {assignedTechIds.length > 0 && (
               <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
-                Visible on their mobile app
+                Visible on {assignedTechIds.length} mobile app{assignedTechIds.length > 1 ? "s" : ""}
               </span>
             )}
-            {assigning && <Loader2 className="h-4 w-4 text-stone-400 fs-spin" />}
+            {savingAssign && <Loader2 className="h-4 w-4 text-stone-400 fs-spin" />}
           </div>
           {assignError && <p className="text-xs text-red-700 mt-2">{assignError}</p>}
           <p className="text-xs text-stone-400 mt-2">
@@ -1526,7 +1772,58 @@ function TemplateDetailPanel({ template, jobs, onClose, onGenerated, currentUser
             />
           </div>
 
+          {currentUser?.role !== "Technician" && (
+            <div className="mb-6 p-4 bg-stone-50 border border-stone-200 rounded-2xl">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-xs font-semibold text-stone-800 flex items-center gap-1.5">
+                    <Users className="h-4 w-4 text-orange-600" /> Assign Template to Technicians
+                  </p>
+                  <p className="text-[11px] text-stone-500 mt-0.5">
+                    Assigned technicians can access and fill this form directly in their mobile app.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveAssignment}
+                  disabled={savingAssign}
+                  className="text-xs font-semibold text-white bg-stone-900 hover:bg-stone-800 disabled:opacity-50 rounded-full px-3.5 py-1.5 flex items-center gap-1.5 transition-colors"
+                >
+                  {savingAssign ? <Loader2 className="h-3.5 w-3.5 fs-spin" /> : <Check className="h-3.5 w-3.5" />}
+                  {assignSuccess ? "Saved!" : "Save Assignments"}
+                </button>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                {technicians.map((t) => {
+                  const isAssigned = assignedTechIds.includes(t.id);
+                  return (
+                    <label
+                      key={t.id}
+                      className={`flex items-center gap-2 p-2 rounded-xl border text-xs font-medium cursor-pointer transition-all ${
+                        isAssigned
+                          ? "bg-orange-50 border-orange-200 text-orange-900 shadow-sm"
+                          : "bg-white border-stone-200 text-stone-600 hover:bg-stone-100"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isAssigned}
+                        onChange={() => toggleTechAssignment(t.id)}
+                        className="rounded border-stone-300 text-orange-600 focus:ring-orange-200"
+                      />
+                      <span className="truncate">{t.name}</span>
+                    </label>
+                  );
+                })}
+                {technicians.length === 0 && (
+                  <p className="text-xs text-stone-400 col-span-3">No technicians registered yet.</p>
+                )}
+              </div>
+            </div>
+          )}
+
           <button
+            type="button"
             onClick={() => setShowFillForm(true)}
             className="w-full text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-full py-2.5 flex items-center justify-center gap-2"
           >
@@ -1537,8 +1834,8 @@ function TemplateDetailPanel({ template, jobs, onClose, onGenerated, currentUser
 
       {/* --- Fill mode: editable inputs, one per field --- */}
       {fieldsData && showFillForm && !generatedDoc && (
-        <>
-          <button onClick={() => setShowFillForm(false)} className="mb-4 text-xs font-semibold text-stone-500 flex items-center gap-1">
+        <form onSubmit={(e) => { e.preventDefault(); handleGenerate(); }}>
+          <button type="button" onClick={() => setShowFillForm(false)} className="mb-4 text-xs font-semibold text-stone-500 flex items-center gap-1">
             <ChevronRight className="h-3.5 w-3.5 rotate-180" /> Back to field list
           </button>
 
@@ -1565,13 +1862,13 @@ function TemplateDetailPanel({ template, jobs, onClose, onGenerated, currentUser
           {fillError && <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5">{fillError}</div>}
 
           <button
-            onClick={handleGenerate} disabled={filling}
+            type="submit" disabled={filling}
             className="w-full text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-full py-2.5 disabled:opacity-60 flex items-center justify-center gap-2"
           >
             {filling ? <Loader2 className="h-4 w-4 fs-spin" /> : <FileCheck2 className="h-4 w-4" />}
             Generate document
           </button>
-        </>
+        </form>
       )}
 
       {generatedDoc && (
@@ -1588,8 +1885,33 @@ function TemplateDetailPanel({ template, jobs, onClose, onGenerated, currentUser
               <Download className="h-3.5 w-3.5" /> Download filled .docx
             </a>
           )}
+
+          {generatedDoc.suggested_values && (
+            <div className="mt-4 pt-4 border-t border-emerald-200/60 text-left">
+              <div className="flex items-center gap-1.5 text-orange-800 text-xs font-semibold mb-2">
+                <Sparkles className="h-4 w-4 text-orange-600" />
+                <span>Chained Auto-Fill Suggestions</span>
+              </div>
+              {Object.entries(generatedDoc.suggested_values).map(([otherTplId, sug]) => (
+                <div key={otherTplId} className="bg-white border border-orange-200 rounded-xl p-3 mb-2 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold text-stone-800">{sug.template_name}</p>
+                    <p className="text-[11px] text-stone-500">{sug.match_count} overlapping field(s) matched automatically</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => resetFillForm(sug.values)}
+                    className="text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 px-3 py-1.5 rounded-full shrink-0"
+                  >
+                    Chain Auto-Fill
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
+
     </Card>
   );
 }
@@ -1597,36 +1919,104 @@ function TemplateDetailPanel({ template, jobs, onClose, onGenerated, currentUser
 function FieldInput({ field, value, onChange }) {
   const inputType = FIELD_TYPE_INPUT[field.field_type] || "text";
   const label = field.label || field.field_id;
+  const isCustomLabel = Boolean(field.label);
+
+  const typeConfig = {
+    date: { label: "Date", icon: Calendar, badge: "bg-blue-50 text-blue-700 border-blue-200" },
+    time: { label: "Time", icon: Clock, badge: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+    checkbox: { label: "Checkbox", icon: CheckSquare, badge: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+    multiline_text: { label: "Paragraph", icon: AlignLeft, badge: "bg-amber-50 text-amber-700 border-amber-200" },
+    number: { label: "Number", icon: Hash, badge: "bg-purple-50 text-purple-700 border-purple-200" },
+    percentage: { label: "Percentage", icon: Percent, badge: "bg-purple-50 text-purple-700 border-purple-200" },
+    currency: { label: "Currency", icon: DollarSign, badge: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+    email: { label: "Email", icon: AtSign, badge: "bg-sky-50 text-sky-700 border-sky-200" },
+    phone: { label: "Phone", icon: Phone, badge: "bg-teal-50 text-teal-700 border-teal-200" },
+    text: { label: "Text", icon: Tag, badge: "bg-stone-100 text-stone-700 border-stone-200" },
+  };
+
+  const meta = typeConfig[field.field_type] || typeConfig.text;
+  const Icon = meta.icon;
 
   if (inputType === "checkbox") {
     return (
-      <label className="flex items-center gap-2.5 text-sm text-stone-700 cursor-pointer">
-        <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 rounded border-stone-300 text-orange-600 focus:ring-orange-400" />
-        {label}
-      </label>
+      <div className="p-3.5 rounded-xl border border-stone-200/90 bg-stone-50/40 hover:bg-stone-50 transition-colors">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-1.5">
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border ${meta.badge}`}>
+              <Icon className="h-3 w-3" /> {meta.label}
+            </span>
+            {field.kind && KIND_LABEL[field.kind] && (
+              <span className="text-[10px] text-stone-400 font-medium">· {KIND_LABEL[field.kind]}</span>
+            )}
+          </div>
+          <span className="text-[10px] font-mono text-stone-400">{field.field_id}</span>
+        </div>
+        <label className="flex items-center gap-3 text-sm text-stone-800 font-medium cursor-pointer select-none mt-1">
+          <input
+            type="checkbox"
+            checked={!!value}
+            onChange={(e) => onChange(e.target.checked)}
+            className="h-4 w-4 rounded border-stone-300 text-orange-600 focus:ring-orange-400 cursor-pointer"
+          />
+          <span>{label}</span>
+        </label>
+      </div>
     );
   }
 
   if (inputType === "textarea") {
     return (
-      <div>
-        <label className="text-xs font-medium text-stone-600">{label}</label>
+      <div className="p-3.5 rounded-xl border border-stone-200/90 bg-stone-50/40 focus-within:bg-white focus-within:border-orange-300 focus-within:ring-2 focus-within:ring-orange-100 transition-all">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-1.5">
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border ${meta.badge}`}>
+              <Icon className="h-3 w-3" /> {meta.label}
+            </span>
+            {field.kind && KIND_LABEL[field.kind] && (
+              <span className="text-[10px] text-stone-400 font-medium">· {KIND_LABEL[field.kind]}</span>
+            )}
+          </div>
+          <span className="text-[10px] font-mono text-stone-400">{field.field_id}</span>
+        </div>
+        <label className="block text-xs font-semibold text-stone-700 mb-1">
+          {label}
+        </label>
         <textarea
-          value={value || ""} onChange={(e) => onChange(e.target.value)}
+          value={value || ""}
+          onChange={(e) => onChange(e.target.value)}
           rows={3}
-          className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200"
+          placeholder={`Enter ${label.toLowerCase()}...`}
+          className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-orange-500"
         />
       </div>
     );
   }
 
   return (
-    <div>
-      <label className="text-xs font-medium text-stone-600">{label}</label>
-      <input
-        type={inputType} value={value || ""} onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200"
-      />
+    <div className="p-3.5 rounded-xl border border-stone-200/90 bg-stone-50/40 focus-within:bg-white focus-within:border-orange-300 focus-within:ring-2 focus-within:ring-orange-100 transition-all">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5">
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border ${meta.badge}`}>
+            <Icon className="h-3 w-3" /> {meta.label}
+          </span>
+          {field.kind && KIND_LABEL[field.kind] && (
+            <span className="text-[10px] text-stone-400 font-medium">· {KIND_LABEL[field.kind]}</span>
+          )}
+        </div>
+        <span className="text-[10px] font-mono text-stone-400">{field.field_id}</span>
+      </div>
+      <label className="block text-xs font-semibold text-stone-700 mb-1">
+        {label}
+      </label>
+      <div className="relative">
+        <input
+          type={inputType}
+          value={value || ""}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={`Enter ${label.toLowerCase()}...`}
+          className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-orange-500"
+        />
+      </div>
     </div>
   );
 }
@@ -1981,8 +2371,24 @@ function CaptureView({ jobs, preselectedJobId, onCaptureSuccess, onGoToDocuments
   );
 }
 
-function TemplatesView({ templates, jobs, technicians, onTemplatesChanged, onDocumentsChanged, loading, error, onRetry }) {
+function TemplatesView({ templates, jobs, technicians = [], currentUser, onTemplatesChanged, onDocumentsChanged, loading, error, onRetry }) {
   const [mode, setMode] = useState(null); // null | "upload" | { type: "detail", template }
+  const [deleteConfirmTemplate, setDeleteConfirmTemplate] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
+  const detailSectionRef = useRef(null);
+
+  // Fill-form state lifted here so it survives TemplateDetailPanel re-renders
+  const [fillShowForm, setFillShowForm] = useState(false);
+  const [fillValues, setFillValues] = useState({});
+  const [fillJobId, setFillJobId] = useState("");
+  const [fillGeneratedDoc, setFillGeneratedDoc] = useState(null);
+
+  useEffect(() => {
+    if (mode && typeof mode === "object" && mode.type === "detail") {
+      detailSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [mode]);
 
   function handleUploaded(tpl) {
     // Jump straight to the extracted-fields review for the template just
@@ -1991,7 +2397,26 @@ function TemplatesView({ templates, jobs, technicians, onTemplatesChanged, onDoc
     setMode({ type: "detail", template: tpl });
   }
 
-  if (loading) return <Spinner label="Loading templates..." />;
+  async function handleDeleteConfirmed() {
+    if (!deleteConfirmTemplate) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await api.deleteTemplate(deleteConfirmTemplate.id);
+      if (mode && typeof mode === "object" && mode.type === "detail" && mode.template?.id === deleteConfirmTemplate.id) {
+        setMode(null);
+      }
+      setDeleteConfirmTemplate(null);
+      onTemplatesChanged();
+      if (onDocumentsChanged) onDocumentsChanged();
+    } catch (err) {
+      setDeleteError(err.message || "Failed to delete template");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  if (loading && templates.length === 0) return <Spinner label="Loading templates..." />;
   if (error) return <ErrorBanner message={error} onRetry={onRetry} />;
 
   return (
@@ -2013,20 +2438,49 @@ function TemplatesView({ templates, jobs, technicians, onTemplatesChanged, onDoc
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {templates.map((t) => {
           const Icon = TRADE_ICON[t.trade] || FileText;
+          const assignedCount = t.assigned_technician_ids ? t.assigned_technician_ids.length : 0;
           return (
-            <Card key={t.id} className="p-5 cursor-pointer hover:border-orange-200" onClick={() => setMode({ type: "detail", template: t })}>
+            <Card key={t.id} className="p-5 cursor-pointer hover:border-orange-200 relative group" onClick={() => {
+                // Reset fill-form state when switching templates
+                const currentId = mode && typeof mode === "object" && mode.type === "detail" ? mode.template.id : null;
+                if (currentId !== t.id) {
+                  setFillShowForm(false);
+                  setFillValues({});
+                  setFillJobId("");
+                  setFillGeneratedDoc(null);
+                }
+                setMode({ type: "detail", template: t });
+              }}>
               <div className="flex items-start justify-between mb-4">
                 <IconBadge icon={Icon} className="bg-gradient-to-br from-orange-500 to-orange-700" />
-                <span className="text-xs font-medium text-stone-400">{t.trade}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-stone-400">{t.trade}</span>
+                  {currentUser?.role !== "Technician" && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteError(null);
+                        setDeleteConfirmTemplate(t);
+                      }}
+                      className="p-1 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                      title="Delete template"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
               </div>
               <p className="font-semibold text-stone-800 mb-1">{t.name}</p>
-              <p className="text-xs text-stone-500 mb-4">{t.field_map.length} mapped fields · used {t.times_used} times</p>
-              {t.technician_id ? (
-                <p className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1 mb-3">
-                  <UserPlus className="h-3 w-3" /> {technicians.find((tech) => tech.id === t.technician_id)?.name || "Assigned"}
-                </p>
+              <p className="text-xs text-stone-500 mb-3">{t.field_map.length} mapped fields · used {t.times_used} times</p>
+              {assignedCount > 0 ? (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-0.5 mb-3">
+                  <UserCheck className="h-3 w-3" /> Assigned to {assignedCount} tech{assignedCount > 1 ? "s" : ""}
+                </span>
               ) : (
-                <p className="text-xs font-medium text-stone-500 bg-stone-100 px-2 py-0.5 rounded-full inline-flex mb-3">Unassigned</p>
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-stone-400 bg-stone-50 border border-stone-200 rounded-full px-2.5 py-0.5 mb-3">
+                  Unassigned
+                </span>
               )}
               <div className="flex items-center justify-between text-xs text-stone-400 pt-3 border-t border-stone-100">
                 <span>Updated {relativeTime(t.updated_at)}</span>
@@ -2049,14 +2503,74 @@ function TemplatesView({ templates, jobs, technicians, onTemplatesChanged, onDoc
       </div>
 
       {mode && typeof mode === "object" && mode.type === "detail" && (
-        <TemplateDetailPanel
-          template={mode.template}
-          jobs={jobs}
-          technicians={technicians}
-          onClose={() => setMode(null)}
-          onGenerated={onDocumentsChanged}
-          onAssigned={onTemplatesChanged}
-        />
+        <div ref={detailSectionRef}>
+          <TemplateDetailPanel
+            template={mode.template}
+            jobs={jobs}
+            technicians={technicians}
+            currentUser={currentUser}
+            onClose={() => setMode(null)}
+            onDelete={(t) => {
+              setDeleteError(null);
+              setDeleteConfirmTemplate(t);
+            }}
+            onGenerated={onDocumentsChanged}
+            onTemplatesChanged={onTemplatesChanged}
+            onAssigned={onTemplatesChanged}
+            showFillForm={fillShowForm}
+            setShowFillForm={setFillShowForm}
+            values={fillValues}
+            setValues={setFillValues}
+            jobId={fillJobId}
+            setJobId={setFillJobId}
+            generatedDoc={fillGeneratedDoc}
+            setGeneratedDoc={setFillGeneratedDoc}
+          />
+        </div>
+      )}
+
+      {deleteConfirmTemplate && (
+        <div className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <Card className="max-w-md w-full p-6 space-y-4 shadow-xl border-stone-200">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-full bg-rose-50 text-rose-600 shrink-0">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-stone-900">Delete template?</h3>
+                <p className="text-xs text-stone-500 mt-1">
+                  Are you sure you want to delete <span className="font-semibold text-stone-700">"{deleteConfirmTemplate.name}"</span>? This will permanently remove the template and unbind it from any documents. This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            {deleteError && (
+              <p className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-2.5">
+                {deleteError}
+              </p>
+            )}
+
+            <div className="flex justify-end items-center gap-2 pt-2 border-t border-stone-100">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmTemplate(null)}
+                disabled={deleting}
+                className="text-xs font-semibold text-stone-600 hover:text-stone-800 px-4 py-2 rounded-full border border-stone-200 hover:bg-stone-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteConfirmed}
+                disabled={deleting}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 rounded-full px-4 py-2 shadow-sm transition-colors"
+              >
+                {deleting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {deleting ? "Deleting..." : "Delete template"}
+              </button>
+            </div>
+          </Card>
+        </div>
       )}
     </div>
   );
@@ -2066,17 +2580,55 @@ function TemplatesView({ templates, jobs, technicians, onTemplatesChanged, onDoc
    DASHBOARD — DOCUMENTS
    ====================================================================== */
 
-function DocumentsView({ documents, jobs, onDocumentsChanged, loading, error, onRetry }) {
+function DocumentsView({ documents, jobs, complianceEvents = [], onDocumentsChanged, loading, error, onRetry }) {
   const [reviewing, setReviewing] = useState(null);
   const [tab, setTab] = useState("All");
+  const [reviewTab, setReviewTab] = useState("fields"); // "fields" | "history"
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [actionPending, setActionPending] = useState(false);
+  const [showCommentInput, setShowCommentInput] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
+
   const tabs = ["All", "Pending Review", "Approved", "Sent"];
-  const shown = tab === "All" ? documents : documents.filter((d) => d.status === tab);
+
+  useEffect(() => {
+    if (reviewing) {
+      setShowCommentInput(false);
+      setCommentText("");
+      setReviewTab("fields");
+      setHistoryLoading(true);
+      api.getDocumentHistory(reviewing.id)
+        .then(setHistory)
+        .catch(() => setHistory([]))
+        .finally(() => setHistoryLoading(false));
+    }
+  }, [reviewing]);
+
+  async function handleSearch(q) {
+    setSearchQuery(q);
+    if (!q.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    setIsSearching(true);
+    try {
+      const results = await api.searchDocuments(q);
+      setSearchResults(results);
+    } catch (_) {
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }
 
   async function approve() {
     setActionPending(true);
     try {
-      await api.reviewDocument(reviewing.id, "approve");
+      await api.reviewDocument(reviewing.id, "approve", commentText || null);
       setReviewing(null);
       onDocumentsChanged();
     } catch (err) {
@@ -2086,11 +2638,12 @@ function DocumentsView({ documents, jobs, onDocumentsChanged, loading, error, on
     }
   }
 
-  async function requestChanges() {
+  async function handleRequestChangesSubmit() {
     setActionPending(true);
     try {
-      await api.reviewDocument(reviewing.id, "request_changes");
+      await api.reviewDocument(reviewing.id, "request_changes", commentText || null);
       setReviewing(null);
+      setShowCommentInput(false);
       onDocumentsChanged();
     } catch (err) {
       alert(err.message || "Could not update document");
@@ -2099,22 +2652,55 @@ function DocumentsView({ documents, jobs, onDocumentsChanged, loading, error, on
     }
   }
 
-  if (loading) return <Spinner label="Loading documents..." />;
+  if (loading && documents.length === 0) return <Spinner label="Loading documents..." />;
   if (error) return <ErrorBanner message={error} onRetry={onRetry} />;
+
+  const baseList = searchResults !== null ? searchResults : documents;
+  const shown = tab === "All" ? baseList : baseList.filter((d) => d.status === tab);
+
+  // Check blocking compliance event for reviewing doc's job
+  const blockingAlerts = reviewing
+    ? complianceEvents.filter((ev) => ev.job_id === reviewing.job_id && !ev.resolved && ev.severity === "High")
+    : [];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="fs-display text-2xl font-semibold text-stone-900">Generated documents</h1>
-        <p className="text-sm text-stone-500 mt-1">Review AI-drafted and template-filled documents before they're sent to customers.</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="fs-display text-2xl font-semibold text-stone-900">Generated documents</h1>
+          <p className="text-sm text-stone-500 mt-1">Review AI-drafted and template-filled documents before they're sent to customers.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <a
+            href={`${api.API_BASE_URL}/documents/export`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 text-xs font-semibold text-stone-700 bg-white border border-stone-200 rounded-full px-4 py-2 hover:bg-stone-50"
+          >
+            <Download className="h-4 w-4" /> Export CSV
+          </a>
+        </div>
       </div>
 
-      <div className="flex gap-2">
-        {tabs.map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={`text-xs font-semibold px-3.5 py-1.5 rounded-full border ${tab === t ? "bg-stone-900 text-white border-stone-900" : "text-stone-600 border-stone-200 bg-white"}`}>
-            {t}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex gap-2">
+          {tabs.map((t) => (
+            <button key={t} onClick={() => setTab(t)} className={`text-xs font-semibold px-3.5 py-1.5 rounded-full border ${tab === t ? "bg-stone-900 text-white border-stone-900" : "text-stone-600 border-stone-200 bg-white"}`}>
+              {t}
+            </button>
+          ))}
+        </div>
+        <div className="relative w-full sm:w-72">
+          <Search className="h-4 w-4 text-stone-400 absolute left-3 top-2.5" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => handleSearch(e.target.value)}
+            placeholder="Full-text search documents..."
+            className="w-full text-xs bg-white border border-stone-200 rounded-full pl-9 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-200"
+          />
+          {isSearching && <Loader2 className="h-3.5 w-3.5 fs-spin absolute right-3 top-2.5 text-stone-400" />}
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-12 gap-6">
@@ -2156,7 +2742,7 @@ function DocumentsView({ documents, jobs, onDocumentsChanged, loading, error, on
                   );
                 })}
                 {shown.length === 0 && (
-                  <tr><td colSpan={5} className="px-6 py-10 text-center text-sm text-stone-400">No documents in this view yet.</td></tr>
+                  <tr><td colSpan={5} className="px-6 py-10 text-center text-sm text-stone-400">No documents match this query or filter.</td></tr>
                 )}
               </tbody>
             </table>
@@ -2164,48 +2750,142 @@ function DocumentsView({ documents, jobs, onDocumentsChanged, loading, error, on
         </Card>
 
         {reviewing && (
-          <Card className="lg:col-span-5 p-6 h-fit">
+          <Card className="lg:col-span-5 p-6 h-fit space-y-4">
             <div className="flex items-center justify-between mb-1">
               <p className="text-sm font-semibold text-stone-800">{reviewing.name}</p>
               <button onClick={() => setReviewing(null)}><X className="h-5 w-5 text-stone-400" /></button>
             </div>
-            <p className="text-xs text-stone-500 mb-4">{reviewing.job_id}</p>
-            <div className="space-y-2 mb-5">
-              {reviewing.extracted_fields.map((f, i) => (
-                <div key={i} className="flex items-center justify-between border-b border-stone-50 last:border-0 py-2 gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm text-stone-700 truncate">{f.field}</p>
-                    {f.value && <p className="text-xs text-stone-400 truncate">{f.value}</p>}
-                  </div>
-                  <ConfidenceBar value={f.confidence} />
-                </div>
-              ))}
-              {reviewing.extracted_fields.length === 0 && (
-                <p className="text-sm text-stone-400">No extracted fields on this document.</p>
-              )}
+            <div className="flex items-center justify-between text-xs text-stone-500">
+              <span>Job: {reviewing.job_id}</span>
+              <a
+                href={`${api.API_BASE_URL}/documents/${reviewing.id}/export`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-orange-600 hover:underline flex items-center gap-1 font-semibold"
+              >
+                <Download className="h-3 w-3" /> Export CSV
+              </a>
             </div>
+
+            {blockingAlerts.length > 0 && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold">Approval Blocked</p>
+                  <p className="text-[11px] text-red-700 mt-0.5">
+                    Unresolved safety alert on job: "{blockingAlerts[0].message}"
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="flex border-b border-stone-100 text-xs font-semibold gap-4">
+              <button
+                onClick={() => setReviewTab("fields")}
+                className={`pb-2 border-b-2 transition ${reviewTab === "fields" ? "border-orange-600 text-orange-600" : "border-transparent text-stone-400 hover:text-stone-700"}`}
+              >
+                Extracted Fields ({reviewing.extracted_fields.length})
+              </button>
+              <button
+                onClick={() => setReviewTab("history")}
+                className={`pb-2 border-b-2 transition ${reviewTab === "history" ? "border-orange-600 text-orange-600" : "border-transparent text-stone-400 hover:text-stone-700"}`}
+              >
+                Audit History ({history.length})
+              </button>
+            </div>
+
+            {reviewTab === "fields" && (
+              <div className="space-y-2 max-h-72 overflow-y-auto fs-scroll pr-1">
+                {reviewing.extracted_fields.map((f, i) => (
+                  <div key={i} className="flex items-center justify-between border-b border-stone-50 last:border-0 py-2 gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm text-stone-700 truncate">{f.field}</p>
+                      {f.value && <p className="text-xs text-stone-400 truncate">{f.value}</p>}
+                    </div>
+                    <ConfidenceBar value={f.confidence} />
+                  </div>
+                ))}
+                {reviewing.extracted_fields.length === 0 && (
+                  <p className="text-sm text-stone-400">No extracted fields on this document.</p>
+                )}
+              </div>
+            )}
+
+            {reviewTab === "history" && (
+              <div className="space-y-3 max-h-72 overflow-y-auto fs-scroll pr-1">
+                {historyLoading && <Spinner label="Loading history..." />}
+                {!historyLoading && history.map((ev) => (
+                  <div key={ev.id} className="text-xs bg-stone-50 border border-stone-100 rounded-xl p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`font-semibold px-2 py-0.5 rounded-full text-[10px] ${ev.action === "approve" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                        {ev.action === "approve" ? "Approved" : "Changes Requested"}
+                      </span>
+                      <span className="text-stone-400">{relativeTime(ev.created_at)}</span>
+                    </div>
+                    <p className="text-stone-600 font-medium">By {ev.user_name || "Office Admin"}</p>
+                    {ev.comment && <p className="text-stone-500 mt-1 italic">"{ev.comment}"</p>}
+                  </div>
+                ))}
+                {!historyLoading && history.length === 0 && (
+                  <p className="text-xs text-stone-400 py-4 text-center">No review actions recorded yet.</p>
+                )}
+              </div>
+            )}
+
             {reviewing.file_url && (
               <a
                 href={`${api.API_BASE_URL}${reviewing.file_url}`} target="_blank" rel="noreferrer"
-                className="mb-5 flex items-center justify-center gap-2 text-xs font-semibold text-stone-700 border border-stone-200 rounded-full py-2.5"
+                className="flex items-center justify-center gap-2 text-xs font-semibold text-stone-700 border border-stone-200 rounded-full py-2.5 hover:bg-stone-50"
               >
-                <Download className="h-3.5 w-3.5" /> Download document
+                <Download className="h-3.5 w-3.5" /> Download document (.docx)
               </a>
             )}
-            <div className="flex gap-3">
-              <button onClick={requestChanges} disabled={actionPending} className="flex-1 text-sm font-semibold text-stone-700 border border-stone-200 rounded-full py-2.5 disabled:opacity-60">
-                Request changes
-              </button>
-              <button onClick={approve} disabled={actionPending} className="flex-1 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-full py-2.5 flex items-center justify-center gap-2 disabled:opacity-60">
-                {actionPending ? <Loader2 className="h-4 w-4 fs-spin" /> : <Check className="h-4 w-4" />} Approve & send
-              </button>
-            </div>
+
+            {showCommentInput && (
+              <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 space-y-2">
+                <label className="text-xs font-semibold text-stone-700 block">Review Comment</label>
+                <textarea
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  placeholder="Reason for requesting changes..."
+                  rows={2}
+                  className="w-full text-xs p-2.5 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
+                />
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => setShowCommentInput(false)} className="text-xs font-semibold text-stone-600 px-3 py-1">Cancel</button>
+                  <button onClick={handleRequestChangesSubmit} disabled={actionPending} className="text-xs font-semibold text-white bg-stone-900 rounded-full px-4 py-1.5">
+                    Submit Request
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!showCommentInput && (
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setShowCommentInput(true)}
+                  disabled={actionPending}
+                  className="flex-1 text-xs font-semibold text-stone-700 border border-stone-200 rounded-full py-2.5 hover:bg-stone-50 disabled:opacity-60"
+                >
+                  Request changes
+                </button>
+                <button
+                  onClick={approve}
+                  disabled={actionPending || blockingAlerts.length > 0}
+                  className="flex-1 text-xs font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-full py-2.5 flex items-center justify-center gap-2 disabled:opacity-40"
+                  title={blockingAlerts.length > 0 ? "Resolve safety compliance alert before approving" : ""}
+                >
+                  {actionPending ? <Loader2 className="h-4 w-4 fs-spin" /> : <Check className="h-4 w-4" />} Approve & send
+                </button>
+              </div>
+            )}
           </Card>
         )}
       </div>
     </div>
   );
 }
+
 
 /* ======================================================================
    DASHBOARD — TECHNICIANS
@@ -2215,7 +2895,6 @@ function TechnicianDetailPanel({ tech, onClose }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [preview, setPreview] = useState(null); // capture being previewed
 
   useEffect(() => {
     let cancelled = false;
@@ -2227,12 +2906,6 @@ function TechnicianDetailPanel({ tech, onClose }) {
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [tech.id]);
-
-  const DOC_TONE = {
-    "Pending Review": "bg-amber-50 text-amber-700 border-amber-200",
-    "Approved": "bg-emerald-50 text-emerald-700 border-emerald-200",
-    "Sent": "bg-blue-50 text-blue-700 border-blue-200",
-  };
 
   return (
     <Card className="p-6">
@@ -2254,7 +2927,6 @@ function TechnicianDetailPanel({ tech, onClose }) {
 
       {detail && (
         <div className="space-y-5">
-          {/* Assigned templates */}
           <div>
             <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Assigned templates</p>
             {detail.assigned_templates.length === 0 ? (
@@ -2270,7 +2942,6 @@ function TechnicianDetailPanel({ tech, onClose }) {
             )}
           </div>
 
-          {/* Uploads */}
           <div>
             <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Uploads ({detail.captures.length})</p>
             {detail.captures.length === 0 ? (
@@ -2310,7 +2981,6 @@ function TechnicianDetailPanel({ tech, onClose }) {
             )}
           </div>
 
-          {/* Document status */}
           <div>
             <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Document status ({detail.documents.length})</p>
             {detail.documents.length === 0 ? (
@@ -2343,11 +3013,12 @@ function TechnicianDetailPanel({ tech, onClose }) {
   );
 }
 
-function TechniciansView({ technicians, onTechniciansChanged, loading, error, onRetry }) {
+function TechniciansView({ technicians, jobs = [], onTechniciansChanged, loading, error, onRetry }) {
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
   const [detailTech, setDetailTech] = useState(null);
+  const [updatingId, setUpdatingId] = useState(null);
 
   async function invite(e) {
     e.preventDefault();
@@ -2355,7 +3026,12 @@ function TechniciansView({ technicians, onTechniciansChanged, loading, error, on
     setFormError(null);
     setSubmitting(true);
     try {
-      await api.createTechnician({ name: form.name.value, trade: form.trade.value });
+      await api.createTechnician({
+        name: form.name.value,
+        trade: form.trade.value,
+        email: form.email?.value || undefined,
+        password: form.password?.value || undefined,
+      });
       setShowForm(false);
       form.reset();
       onTechniciansChanged();
@@ -2366,7 +3042,19 @@ function TechniciansView({ technicians, onTechniciansChanged, loading, error, on
     }
   }
 
-  if (loading) return <Spinner label="Loading technicians..." />;
+  async function handleStatusChange(techId, newStatus) {
+    setUpdatingId(techId);
+    try {
+      await api.updateTechnician(techId, { status: newStatus });
+      onTechniciansChanged();
+    } catch (err) {
+      alert(err.message || "Failed to update technician status");
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  if (loading && technicians.length === 0) return <Spinner label="Loading technicians..." />;
   if (error) return <ErrorBanner message={error} onRetry={onRetry} />;
 
   return (
@@ -2374,7 +3062,7 @@ function TechniciansView({ technicians, onTechniciansChanged, loading, error, on
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="fs-display text-2xl font-semibold text-stone-900">Technicians</h1>
-          <p className="text-sm text-stone-500 mt-1">Monitor field team activity, workload, and documentation quality.</p>
+          <p className="text-sm text-stone-500 mt-1">Monitor field team activity, workload, and credentials.</p>
         </div>
         <button onClick={() => setShowForm(!showForm)} className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-full px-4 py-2 shadow-sm">
           <UserPlus className="h-4 w-4" /> Invite technician
@@ -2387,13 +3075,21 @@ function TechniciansView({ technicians, onTechniciansChanged, loading, error, on
           <form onSubmit={invite} className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-stone-600">Full name</label>
-              <input name="name" placeholder="e.g. Jordan Lee" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" />
+              <input name="name" required placeholder="e.g. Jordan Lee" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" />
             </div>
             <div>
               <label className="text-xs font-medium text-stone-600">Trade</label>
               <select name="trade" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-200">
                 {Object.keys(TRADE_ICON).map((t) => <option key={t}>{t}</option>)}
               </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-stone-600">Mobile App Email (Login ID)</label>
+              <input name="email" type="email" placeholder="e.g. jordan@company.com" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-stone-600">Mobile App Password</label>
+              <input name="password" type="password" placeholder="Default: demo-password-123" className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200" />
             </div>
             <div className="sm:col-span-2 flex justify-end gap-3">
               <button type="button" onClick={() => setShowForm(false)} className="text-sm font-semibold text-stone-600 px-4 py-2.5">Cancel</button>
@@ -2423,10 +3119,23 @@ function TechniciansView({ technicians, onTechniciansChanged, loading, error, on
                   </div>
                   <div>
                     <p className="font-semibold text-stone-800">{t.name}</p>
-                    <p className="text-xs text-stone-500 flex items-center gap-1"><Icon className="h-3 w-3" /> {t.trade}</p>
+                    {t.email && <p className="text-xs text-stone-400 font-mono">{t.email}</p>}
+                    <p className="text-xs text-stone-500 flex items-center gap-1 mt-0.5"><Icon className="h-3 w-3" /> {t.trade}</p>
                   </div>
                 </div>
-                <StatusPill label={t.status} />
+
+                <div className="flex flex-col items-end">
+                  <select
+                    value={t.status}
+                    disabled={updatingId === t.id}
+                    onChange={(e) => handleStatusChange(t.id, e.target.value)}
+                    className="text-xs font-semibold px-2.5 py-1 rounded-full border border-stone-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200 cursor-pointer"
+                  >
+                    <option value="Available">Available</option>
+                    <option value="On Site">On Site</option>
+                    <option value="Off Duty">Off Duty</option>
+                  </select>
+                </div>
               </div>
               <div className="grid grid-cols-4 gap-2 text-center border-t border-stone-100 pt-4">
                 <div>
@@ -2459,12 +3168,13 @@ function TechniciansView({ technicians, onTechniciansChanged, loading, error, on
   );
 }
 
+
 /* ======================================================================
    DASHBOARD — COMPLIANCE
    ====================================================================== */
 
 function ComplianceView({ rules, events, rate, loading, error, onRetry }) {
-  if (loading) return <Spinner label="Loading compliance data..." />;
+  if (loading && rules.length === 0 && events.length === 0) return <Spinner label="Loading compliance data..." />;
   if (error) return <ErrorBanner message={error} onRetry={onRetry} />;
 
   return (
@@ -2569,7 +3279,18 @@ function TrendChart({ data, dataKey, color, fill, empty }) {
 }
 
 function AnalyticsView({ summary, technicians, loading, error, onRetry }) {
-  if (loading) return <Spinner label="Loading analytics..." />;
+  const [recurringEvents, setRecurringEvents] = useState([]);
+  const [recLoading, setRecLoading] = useState(false);
+
+  useEffect(() => {
+    setRecLoading(true);
+    api.getRecurringComplianceEvents()
+      .then(setRecurringEvents)
+      .catch(() => setRecurringEvents([]))
+      .finally(() => setRecLoading(false));
+  }, []);
+
+  if (loading && !summary) return <Spinner label="Loading analytics..." />;
   if (error) return <ErrorBanner message={error} onRetry={onRetry} />;
 
   return (
@@ -2578,6 +3299,7 @@ function AnalyticsView({ summary, technicians, loading, error, onRetry }) {
         <h1 className="fs-display text-2xl font-semibold text-stone-900">Analytics</h1>
         <p className="text-sm text-stone-500 mt-1">Productivity, documentation speed, and AI performance over time.</p>
       </div>
+
       <div className="grid lg:grid-cols-2 gap-6">
         <Card className="p-6">
           <p className="text-sm font-semibold text-stone-800 mb-4">Documents per technician this week</p>
@@ -2593,6 +3315,32 @@ function AnalyticsView({ summary, technicians, loading, error, onRetry }) {
             </ResponsiveContainer>
           </div>
         </Card>
+
+        <Card className="p-6">
+          <p className="text-sm font-semibold text-stone-800 mb-4">Top Recurring Compliance Issues</p>
+          {recLoading ? (
+            <Spinner label="Loading recurring issues..." />
+          ) : recurringEvents.length === 0 ? (
+            <div className="h-56 flex items-center justify-center text-sm text-stone-400">
+              No recurring compliance issues recorded yet.
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-56 overflow-y-auto fs-scroll pr-1">
+              {recurringEvents.map((r, i) => (
+                <div key={i} className="flex items-center justify-between p-3 bg-stone-50 border border-stone-100 rounded-xl">
+                  <div className="min-w-0 flex-1 pr-2">
+                    <p className="text-xs font-semibold text-stone-800 truncate">{r.message}</p>
+                    <span className="text-[11px] text-stone-400">Severity: {r.severity}</span>
+                  </div>
+                  <span className="fs-mono text-xs font-bold text-orange-700 bg-orange-50 border border-orange-200 px-2.5 py-1 rounded-full shrink-0">
+                    {r.count} occurrence{r.count === 1 ? "" : "s"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
         <Card className="p-6">
           <p className="text-sm font-semibold text-stone-800 mb-4">Avg documentation time (minutes)</p>
           <TrendChart data={summary?.documentation_time_trend} dataKey="mins" color="#7c3aed" empty="No trend data yet — needs a few weeks of usage." />
@@ -2601,40 +3349,170 @@ function AnalyticsView({ summary, technicians, loading, error, onRetry }) {
           <p className="text-sm font-semibold text-stone-800 mb-4">AI extraction accuracy</p>
           <TrendChart data={summary?.accuracy_trend} dataKey="acc" color="#0d9488" fill empty="No trend data yet — needs a few weeks of usage." />
         </Card>
-        <Card className="p-6">
-          <p className="text-sm font-semibold text-stone-800 mb-4">Compliance rate</p>
-          <TrendChart data={summary?.compliance_trend} dataKey="rate" color="#16a34a" empty="No trend data yet — needs a few weeks of usage." />
-        </Card>
       </div>
     </div>
   );
 }
 
 /* ======================================================================
-   DASHBOARD — SETTINGS (decorative — not backend-driven yet)
+   DASHBOARD — SETTINGS
    ====================================================================== */
 
-function SettingsView({ currentUser }) {
-  const [integrations, setIntegrations] = useState({ CRM: true, QuickBooks: false, "Google Calendar": true });
+function SettingsView({ currentUser, onUserUpdated }) {
+  const [fullName, setFullName] = useState(currentUser?.full_name || "");
+  const [email, setEmail] = useState(currentUser?.email || "");
+  const [bizName, setBizName] = useState("");
+  const [primaryTrade, setPrimaryTrade] = useState("General");
+  const [address, setAddress] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState(null);
+  const [saveErr, setSaveErr] = useState(null);
+
+  const [integrations, setIntegrations] = useState([]);
+  const [intLoading, setIntLoading] = useState(true);
+
+  useEffect(() => {
+    if (currentUser) {
+      setFullName(currentUser.full_name || "");
+      setEmail(currentUser.email || "");
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.getBusiness()
+      .then((biz) => {
+        if (!cancelled && biz) {
+          setBizName(biz.name || "");
+          setPrimaryTrade(biz.primary_trade || "General");
+          setAddress(biz.address || "");
+        }
+      })
+      .catch(() => {});
+
+    api.getIntegrations()
+      .then((items) => { if (!cancelled) setIntegrations(items); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setIntLoading(false); });
+
+    return () => { cancelled = true; };
+  }, []);
+
+  async function handleSaveProfile(e) {
+    e.preventDefault();
+    setSaving(true);
+    setSaveMsg(null);
+    setSaveErr(null);
+    try {
+      await api.updateMe({ full_name: fullName, email });
+      await api.updateBusiness({ name: bizName, primary_trade: primaryTrade, address });
+      setSaveMsg("Profile and business settings saved successfully!");
+      if (onUserUpdated) onUserUpdated();
+    } catch (err) {
+      setSaveErr(err.message || "Failed to update profile");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleToggleIntegration(name, currentEnabled) {
+    const nextEnabled = !currentEnabled;
+    setIntegrations((prev) => prev.map((i) => (i.name === name ? { ...i, enabled: nextEnabled } : i)));
+    try {
+      await api.updateIntegration(name, nextEnabled);
+    } catch (err) {
+      alert(`Failed to update integration ${name}: ${err.message}`);
+      setIntegrations((prev) => prev.map((i) => (i.name === name ? { ...i, enabled: currentEnabled } : i)));
+    }
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-4xl mx-auto">
       <div>
         <h1 className="fs-display text-2xl font-semibold text-stone-900">Settings</h1>
         <p className="text-sm text-stone-500 mt-1">Manage your business profile, plan, team, and integrations.</p>
       </div>
 
-      <Card className="p-6">
-        <p className="text-sm font-semibold text-stone-800 mb-4">Business profile</p>
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs font-medium text-stone-600">Full name</label>
-            <input defaultValue={currentUser?.full_name || ""} disabled className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm bg-stone-50 text-stone-500" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-stone-600">Email</label>
-            <input defaultValue={currentUser?.email || ""} disabled className="mt-1 w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm bg-stone-50 text-stone-500" />
-          </div>
+      {saveMsg && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold rounded-xl flex items-center justify-between">
+          <span>{saveMsg}</span>
+          <button onClick={() => setSaveMsg(null)} className="font-bold">×</button>
         </div>
+      )}
+      {saveErr && (
+        <div className="p-4 bg-red-50 border border-red-200 text-red-800 text-xs font-semibold rounded-xl flex items-center justify-between">
+          <span>{saveErr}</span>
+          <button onClick={() => setSaveErr(null)} className="font-bold">×</button>
+        </div>
+      )}
+
+      <Card className="p-6">
+        <p className="text-sm font-semibold text-stone-800 mb-4">Business & Personal Profile</p>
+        <form onSubmit={handleSaveProfile} className="space-y-4">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-stone-600 block mb-1">Your Full Name</label>
+              <input
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 bg-white"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-stone-600 block mb-1">Email Address</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 bg-white"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-stone-600 block mb-1">Business Name</label>
+              <input
+                type="text"
+                value={bizName}
+                onChange={(e) => setBizName(e.target.value)}
+                placeholder="e.g. Meridian Fieldworks"
+                className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 bg-white"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-stone-600 block mb-1">Primary Trade</label>
+              <select
+                value={primaryTrade}
+                onChange={(e) => setPrimaryTrade(e.target.value)}
+                className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
+              >
+                {Object.keys(TRADE_ICON).map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-stone-600 block mb-1">Business Address</label>
+            <input
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="e.g. 100 Main St, Suite 400"
+              className="w-full border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 bg-white"
+            />
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <button
+              type="submit"
+              disabled={saving}
+              className="inline-flex items-center gap-2 text-xs font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 px-5 py-2.5 rounded-full shadow-sm disabled:opacity-50"
+            >
+              {saving && <Loader2 className="h-4 w-4 fs-spin" />} Save Profile
+            </button>
+          </div>
+        </form>
       </Card>
 
       <Card className="p-6">
@@ -2643,33 +3521,44 @@ function SettingsView({ currentUser }) {
           <span className="text-xs font-semibold text-orange-700 bg-orange-50 border border-orange-200 px-3 py-1 rounded-full">Growth Plan</span>
         </div>
         <div className="flex gap-3">
-          <button className="text-sm font-semibold text-stone-700 border border-stone-200 rounded-full px-4 py-2">Manage billing</button>
-          <button className="text-sm font-semibold text-white bg-stone-900 rounded-full px-4 py-2">Upgrade plan</button>
+          <button className="text-sm font-semibold text-stone-700 border border-stone-200 rounded-full px-4 py-2 hover:bg-stone-50">Manage billing</button>
+          <button className="text-sm font-semibold text-white bg-stone-900 rounded-full px-4 py-2 hover:bg-stone-800">Upgrade plan</button>
         </div>
       </Card>
 
       <Card className="p-6">
-        <p className="text-sm font-semibold text-stone-800 mb-4">Integrations</p>
-        <div className="space-y-3">
-          {Object.keys(integrations).map((k) => (
-            <div key={k} className="flex items-center justify-between border-b border-stone-50 last:border-0 pb-3 last:pb-0">
-              <div className="flex items-center gap-3">
-                <Puzzle className="h-4 w-4 text-stone-400" />
-                <p className="text-sm text-stone-700">{k}</p>
+        <p className="text-sm font-semibold text-stone-800 mb-4">Software Integrations</p>
+        {intLoading ? (
+          <Spinner label="Loading integrations..." />
+        ) : (
+          <div className="space-y-4">
+            {integrations.map((item) => (
+              <div key={item.name} className="flex items-center justify-between border-b border-stone-100 last:border-0 pb-3.5 last:pb-0">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-orange-600">
+                    <Puzzle className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-stone-800">{item.name}</p>
+                    <p className="text-xs text-stone-400">Sync FieldProof records directly with {item.name}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleToggleIntegration(item.name, item.enabled)}
+                  className={`w-11 h-6 rounded-full flex items-center px-0.5 transition ${item.enabled ? "bg-orange-600 justify-end" : "bg-stone-200 justify-start"}`}
+                >
+                  <span className="h-5 w-5 rounded-full bg-white block shadow-sm" />
+                </button>
               </div>
-              <button
-                onClick={() => setIntegrations({ ...integrations, [k]: !integrations[k] })}
-                className={`w-11 h-6 rounded-full flex items-center px-0.5 transition ${integrations[k] ? "bg-orange-600 justify-end" : "bg-stone-200 justify-start"}`}
-              >
-                <span className="h-5 w-5 rounded-full bg-white block" />
-              </button>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </Card>
     </div>
   );
 }
+
 
 /* ======================================================================
    DASHBOARD — ROOT (fetches everything from the live API)
@@ -2708,15 +3597,31 @@ function Dashboard({ onLogout }) {
     ];
 
     for (const [key, fetcher, apply] of tasks) {
-      setLoading((l) => ({ ...l, [key]: true }));
       try {
         const result = await fetcher();
         apply(result);
-        setLoading((l) => ({ ...l, [key]: false }));
       } catch (err) {
         setErrors((e) => ({ ...e, [key]: err.message || "Failed to load" }));
+      } finally {
         setLoading((l) => ({ ...l, [key]: false }));
       }
+    }
+  }, []);
+
+  // Silent background sync — does NOT call setErrors/setLoading so it never
+  // triggers Dashboard re-renders that could disrupt active fill-form state.
+  const backgroundSync = useCallback(async () => {
+    const fetches = [
+      [api.getTechnicians, (v) => setState((s) => ({ ...s, technicians: v }))],
+      [api.getJobs,        (v) => setState((s) => ({ ...s, jobs: v }))],
+      [api.getTemplates,   (v) => setState((s) => ({ ...s, templates: v }))],
+      [api.getDocuments,   (v) => setState((s) => ({ ...s, documents: v }))],
+      [() => Promise.all([api.getComplianceRules(), api.getComplianceEvents(), api.getComplianceRate()]),
+        ([rules, events, rate]) => setState((s) => ({ ...s, complianceRules: rules, complianceEvents: events, complianceRate: rate }))],
+      [api.getAnalyticsSummary, (v) => setState((s) => ({ ...s, summary: v }))],
+    ];
+    for (const [fetcher, apply] of fetches) {
+      try { apply(await fetcher()); } catch (_) { /* swallow silently */ }
     }
   }, []);
 
@@ -2728,10 +3633,11 @@ function Dashboard({ onLogout }) {
   // The dashboard's WebSocket handles immediate job/document events. Polling
   // closes the gap for asynchronous Celery processing and changes submitted
   // from the mobile app, which writes to the same database through /capture.
+  // Uses backgroundSync instead of loadAll to avoid re-render side effects.
   useEffect(() => {
-    const syncTimer = window.setInterval(loadAll, 20000);
+    const syncTimer = window.setInterval(backgroundSync, 20000);
     return () => window.clearInterval(syncTimer);
-  }, [loadAll]);
+  }, [backgroundSync]);
 
   // Live updates: refresh the affected slice when the backend pushes an event
   useEffect(() => {
@@ -2749,52 +3655,40 @@ function Dashboard({ onLogout }) {
 
   const refetch = {
     technicians: async () => {
-      setLoading((l) => ({ ...l, technicians: true }));
       try {
         const v = await api.getTechnicians();
         setState((s) => ({ ...s, technicians: v }));
         setErrors((e) => ({ ...e, technicians: undefined }));
       } catch (err) {
         setErrors((e) => ({ ...e, technicians: err.message }));
-      } finally {
-        setLoading((l) => ({ ...l, technicians: false }));
       }
     },
     jobs: async () => {
-      setLoading((l) => ({ ...l, jobs: true }));
       try {
         const v = await api.getJobs();
         setState((s) => ({ ...s, jobs: v }));
         setErrors((e) => ({ ...e, jobs: undefined }));
       } catch (err) {
         setErrors((e) => ({ ...e, jobs: err.message }));
-      } finally {
-        setLoading((l) => ({ ...l, jobs: false }));
       }
       api.getAnalyticsSummary().then((v) => setState((s) => ({ ...s, summary: v }))).catch(() => {});
     },
     templates: async () => {
-      setLoading((l) => ({ ...l, templates: true }));
       try {
         const v = await api.getTemplates();
         setState((s) => ({ ...s, templates: v }));
         setErrors((e) => ({ ...e, templates: undefined }));
       } catch (err) {
         setErrors((e) => ({ ...e, templates: err.message }));
-      } finally {
-        setLoading((l) => ({ ...l, templates: false }));
       }
     },
     documents: async () => {
-      setLoading((l) => ({ ...l, documents: true }));
       try {
         const v = await api.getDocuments();
         setState((s) => ({ ...s, documents: v }));
         setErrors((e) => ({ ...e, documents: undefined }));
       } catch (err) {
         setErrors((e) => ({ ...e, documents: err.message }));
-      } finally {
-        setLoading((l) => ({ ...l, documents: false }));
       }
       api.getAnalyticsSummary().then((v) => setState((s) => ({ ...s, summary: v }))).catch(() => {});
     },
@@ -2818,6 +3712,8 @@ function Dashboard({ onLogout }) {
       <JobsView
         jobs={state.jobs}
         technicians={state.technicians}
+        documents={state.documents}
+        complianceEvents={state.complianceEvents}
         onJobsChanged={refetch.jobs}
         onCaptureJob={(j) => { setSelectedCaptureJobId(j.id); setActive("capture"); }}
       />
@@ -2832,20 +3728,26 @@ function Dashboard({ onLogout }) {
     ),
     templates: (
       <TemplatesView
-        templates={state.templates} jobs={state.jobs} technicians={state.technicians}
-        onTemplatesChanged={refetch.templates} onDocumentsChanged={refetch.documents}
-        loading={loading.templates} error={errors.templates} onRetry={refetch.templates}
+        templates={state.templates}
+        jobs={state.jobs}
+        technicians={state.technicians}
+        currentUser={currentUser}
+        onTemplatesChanged={refetch.templates}
+        onDocumentsChanged={refetch.documents}
+        loading={loading.templates}
+        error={errors.templates}
+        onRetry={refetch.templates}
       />
     ),
     documents: (
       <DocumentsView
-        documents={state.documents} jobs={state.jobs} onDocumentsChanged={refetch.documents}
+        documents={state.documents} jobs={state.jobs} complianceEvents={state.complianceEvents} onDocumentsChanged={refetch.documents}
         loading={loading.documents} error={errors.documents} onRetry={refetch.documents}
       />
     ),
     technicians: (
       <TechniciansView
-        technicians={state.technicians} onTechniciansChanged={refetch.technicians}
+        technicians={state.technicians} jobs={state.jobs} onTechniciansChanged={refetch.technicians}
         loading={loading.technicians} error={errors.technicians} onRetry={refetch.technicians}
       />
     ),
@@ -2861,8 +3763,9 @@ function Dashboard({ onLogout }) {
         loading={loading.analytics || loading.technicians} error={errors.analytics} onRetry={loadAll}
       />
     ),
-    settings: <SettingsView currentUser={currentUser} />,
+    settings: <SettingsView currentUser={currentUser} onUserUpdated={() => api.getMe().then(setCurrentUser)} />,
   }[active];
+
 
   return (
     <div className="fs-root min-h-screen bg-stone-100 flex">

@@ -14,16 +14,48 @@ from app.services.docx_writer import fill_docx
 router = APIRouter(prefix="/templates", tags=["templates"])
 
 
+def _serialize_template(tpl: models.Template) -> schemas.TemplateOut:
+    assigned_ids = [asn.technician_id for asn in tpl.assignments] if hasattr(tpl, "assignments") and tpl.assignments else []
+    return schemas.TemplateOut(
+        id=tpl.id,
+        name=tpl.name,
+        trade=tpl.trade,
+        field_map=tpl.field_map or [],
+        times_used=tpl.times_used or 0,
+        assigned_technician_ids=assigned_ids,
+        updated_at=tpl.updated_at,
+    )
+
+
 @router.get("", response_model=list[schemas.TemplateOut])
 def list_templates(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
-    return (
+    templates = (
         db.query(models.Template)
         .filter(models.Template.business_id == current_user.business_id)
         .all()
     )
+    return [_serialize_template(t) for t in templates]
+
+
+@router.get("/assigned", response_model=list[schemas.TemplateOut])
+def get_assigned_templates(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    tech = db.query(models.Technician).filter(models.Technician.user_id == current_user.id).first()
+    if not tech:
+        templates = db.query(models.Template).filter(models.Template.business_id == current_user.business_id).all()
+        return [_serialize_template(t) for t in templates]
+
+    assignments = db.query(models.TemplateAssignment).filter(models.TemplateAssignment.technician_id == tech.id).all()
+    tpl_ids = [a.template_id for a in assignments]
+    if not tpl_ids:
+        return []
+    templates = db.query(models.Template).filter(models.Template.id.in_(tpl_ids)).all()
+    return [_serialize_template(t) for t in templates]
 
 
 @router.get("/my", response_model=list[schemas.TemplateOut])
@@ -46,12 +78,18 @@ def my_templates(
             status_code=403,
             detail="No technician profile is linked to this account. Ask your operator to create one.",
         )
-    return (
+    assigned_templates = (
         db.query(models.Template)
-        .filter(models.Template.business_id == current_user.business_id, models.Template.technician_id == tech.id)
+        .outerjoin(models.TemplateAssignment, models.TemplateAssignment.template_id == models.Template.id)
+        .filter(
+            models.Template.business_id == current_user.business_id,
+            (models.Template.technician_id == tech.id) | (models.TemplateAssignment.technician_id == tech.id),
+        )
+        .distinct()
         .order_by(models.Template.assigned_at.desc().nullslast(), models.Template.updated_at.desc())
         .all()
     )
+    return assigned_templates
 
 
 @router.post("/{template_id}/assign", response_model=schemas.TemplateOut)
@@ -62,30 +100,40 @@ def assign_template(
     current_user: models.User = Depends(auth.require_owner_or_admin),
 ):
     """
-    Operator action: bind a template to the one technician who should see
-    and capture against it from the mobile app. Pass technician_id: null to
-    unassign (it returns to the unassigned pool).
+    Backward-compatible assignment endpoint.
+    - payload.technician_id: single technician assignment (legacy merge path)
+    - payload.technician_ids: multiple technician assignment (current multi-assignment flow)
     """
     tpl = _get_owned_template(db, template_id, current_user)
-    if payload.technician_id:
+
+    target_ids = []
+    if payload.technician_ids is not None:
+        target_ids = [tid for tid in payload.technician_ids if tid]
+    elif payload.technician_id is not None:
+        target_ids = [payload.technician_id] if payload.technician_id else []
+
+    db.query(models.TemplateAssignment).filter(models.TemplateAssignment.template_id == tpl.id).delete(synchronize_session=False)
+
+    for tech_id in target_ids:
         tech = (
             db.query(models.Technician)
-            .filter(
-                models.Technician.id == payload.technician_id,
-                models.Technician.business_id == current_user.business_id,
-            )
+            .filter(models.Technician.id == tech_id, models.Technician.business_id == current_user.business_id)
             .first()
         )
         if not tech:
-            raise HTTPException(status_code=404, detail="Technician not found")
-        tpl.technician_id = tech.id
+            raise HTTPException(status_code=404, detail=f"Technician {tech_id} not found")
+        db.add(models.TemplateAssignment(template_id=tpl.id, technician_id=tech.id))
+
+    if target_ids:
+        tpl.technician_id = target_ids[0]
         tpl.assigned_at = datetime.utcnow()
     else:
         tpl.technician_id = None
         tpl.assigned_at = None
+
     db.commit()
     db.refresh(tpl)
-    return tpl
+    return _serialize_template(tpl)
 
 
 @router.get("/{template_id}", response_model=schemas.TemplateOut)
@@ -94,7 +142,8 @@ def get_template(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
-    return _get_owned_template(db, template_id, current_user)
+    tpl = _get_owned_template(db, template_id, current_user)
+    return _serialize_template(tpl)
 
 
 @router.delete("/{template_id}", status_code=204)
@@ -104,6 +153,29 @@ def delete_template(
     current_user: models.User = Depends(auth.require_owner_or_admin),
 ):
     tpl = _get_owned_template(db, template_id, current_user)
+
+    # 1. Nullify references in Documents so deleting the template does not violate foreign keys
+    db.query(models.Document).filter(models.Document.template_id == tpl.id).update(
+        {models.Document.template_id: None}, synchronize_session=False
+    )
+
+    # 2. Clean up source file if exists
+    if tpl.source_file_url:
+        try:
+            local_path = storage.resolve_local_path(tpl.source_file_url)
+            if os.path.exists(local_path):
+                os.remove(local_path)
+            # Also clean up extracted directory if it exists
+            extraction_dir = os.path.join(
+                "uploads", "templates", "extracted", os.path.splitext(os.path.basename(local_path))[0]
+            )
+            if os.path.exists(extraction_dir):
+                import shutil
+                shutil.rmtree(extraction_dir, ignore_errors=True)
+        except Exception:
+            pass
+
+    # 3. Delete the template record
     db.delete(tpl)
     db.commit()
     return None
@@ -220,6 +292,36 @@ async def fill_template(
         if fid in fields_by_id
     ]
 
+    # Compute label-to-value map from filled values
+    label_value_map = {}
+    for fid, val in payload.values.items():
+        if fid in fields_by_id and val is not None and val != "":
+            lbl = (fields_by_id[fid].get("label") or fid).strip().lower()
+            label_value_map[lbl] = val
+
+    # Look for matching fields in other templates for this business
+    other_templates = (
+        db.query(models.Template)
+        .filter(models.Template.business_id == current_user.business_id, models.Template.id != tpl.id)
+        .all()
+    )
+
+    suggested = {}
+    for ot in other_templates:
+        if not ot.extraction or "fields" not in ot.extraction:
+            continue
+        ot_matches = {}
+        for f in ot.extraction["fields"]:
+            flbl = (f.get("label") or f.get("field_id") or "").strip().lower()
+            if flbl in label_value_map:
+                ot_matches[f["field_id"]] = label_value_map[flbl]
+        if ot_matches:
+            suggested[ot.id] = {
+                "template_name": ot.name,
+                "values": ot_matches,
+                "match_count": len(ot_matches),
+            }
+
     doc = models.Document(
         job_id=job.id,
         template_id=tpl.id,
@@ -233,7 +335,11 @@ async def fill_template(
     tpl.times_used += 1
     db.commit()
     db.refresh(doc)
+
+    # Attach suggested_values for response schema
+    doc.suggested_values = suggested if suggested else None
     return doc
+
 
 
 @router.patch("/{template_id}/fields/{field_id}")

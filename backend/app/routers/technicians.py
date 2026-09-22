@@ -28,17 +28,17 @@ def _serialize(db: Session, tech: models.Technician) -> schemas.TechnicianOut:
         .filter(models.Capture.technician_id == tech.id)
         .scalar()
     )
+    email = tech.user.email if tech.user else None
     return schemas.TechnicianOut(
         id=tech.id,
         name=tech.name,
         trade=tech.trade,
+        email=email,
         status=tech.status.value,
         compliance_pct=tech.compliance_pct,
         active_jobs=active_jobs or 0,
         docs_this_week=docs_this_week or 0,
         user_id=tech.user_id,
-        # Capture volume for the card; the per-upload breakdown lives in
-        # GET /{tech_id}/detail.
         uploads_count=capture_count or 0,
     )
 
@@ -58,6 +58,7 @@ def invite_technician(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.require_owner_or_admin),
 ):
+    tech_user = None
     if payload.email:
         existing = db.query(models.User).filter(models.User.email == payload.email).first()
         if existing:
@@ -70,9 +71,11 @@ def invite_technician(
             role=models.Role.technician,
         )
         db.add(tech_user)
+        db.flush()
 
     tech = models.Technician(
         business_id=current_user.business_id,
+        user_id=tech_user.id if tech_user else None,
         name=payload.name,
         trade=payload.trade,
     )
@@ -93,6 +96,36 @@ def get_technician(
     current_user: models.User = Depends(auth.get_current_user),
 ):
     tech = _get_owned_tech(db, tech_id, current_user)
+    return _serialize(db, tech)
+
+
+@router.patch("/{tech_id}", response_model=schemas.TechnicianOut)
+def update_technician(
+    tech_id: str,
+    payload: schemas.TechnicianUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    tech = (
+        db.query(models.Technician)
+        .filter(models.Technician.id == tech_id, models.Technician.business_id == current_user.business_id)
+        .first()
+    )
+    if not tech:
+        raise HTTPException(status_code=404, detail="Technician not found")
+
+    if payload.name is not None:
+        tech.name = payload.name
+    if payload.trade is not None:
+        tech.trade = payload.trade
+    if payload.status is not None:
+        status_value = payload.status
+        if isinstance(status_value, str):
+            match = next((e for e in models.TechStatus if e.value.lower() == status_value.lower()), None)
+            tech.status = match if match is not None else status_value
+
+    db.commit()
+    db.refresh(tech)
     return _serialize(db, tech)
 
 
@@ -124,9 +157,14 @@ def get_technician_detail(
         .all()
     )
 
-    templates = (
+    assigned_templates = (
         db.query(models.Template)
-        .filter(models.Template.technician_id == tech.id)
+        .outerjoin(models.TemplateAssignment, models.TemplateAssignment.template_id == models.Template.id)
+        .filter(
+            (models.Template.technician_id == tech.id)
+            | (models.TemplateAssignment.technician_id == tech.id)
+        )
+        .distinct()
         .all()
     )
 
@@ -134,7 +172,7 @@ def get_technician_detail(
         "technician": _serialize(db, tech),
         "assigned_templates": [
             {"id": t.id, "name": t.name, "trade": t.trade, "assigned_at": t.assigned_at.isoformat() if t.assigned_at else None}
-            for t in templates
+            for t in assigned_templates
         ],
         "captures": [
             schemas.CaptureOut(

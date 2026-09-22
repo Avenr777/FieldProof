@@ -1,10 +1,13 @@
+import type { Job } from "../../services/jobs";
 import type { Template } from "../../services/templates";
 
 export type RootStackParamList = {
   Login: undefined;
-  /** Technician home: templates assigned by the operator. */
+  Jobs: undefined;
+  JobDetails: { job: Job };
   MyTemplates: undefined;
-  /** Operator/owner home: team uploads & document status console. */
   OperatorHome: undefined;
-  Capture: { template: Template };
+  Capture: { job?: Job; template?: Template; templateId?: string; jobId?: string };
+  Templates: undefined;
+  FillTemplate: { template: Template; preselectedJobId?: string };
 };

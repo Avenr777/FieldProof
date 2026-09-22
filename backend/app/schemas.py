@@ -4,7 +4,7 @@ from typing import Optional, Any
 from pydantic import BaseModel, EmailStr, ConfigDict
 
 
-# ---------- Auth ----------
+# ---------- Auth & Business ----------
 
 class SignupRequest(BaseModel):
     business_name: str
@@ -33,6 +33,43 @@ class UserOut(BaseModel):
     business_id: str
 
 
+class UserUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+
+class BusinessOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    name: str
+    primary_trade: str
+    address: Optional[str] = None
+    plan: str
+    seats: int
+
+
+class BusinessUpdate(BaseModel):
+    name: Optional[str] = None
+    primary_trade: Optional[str] = None
+    address: Optional[str] = None
+
+
+# ---------- Integrations ----------
+
+class IntegrationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    name: str
+    enabled: bool
+    config: Optional[dict[str, Any]] = None
+    updated_at: datetime
+
+
+class IntegrationUpdate(BaseModel):
+    enabled: bool
+    config: Optional[dict[str, Any]] = None
+
+
 # ---------- Technicians ----------
 
 class TechnicianBase(BaseModel):
@@ -45,21 +82,22 @@ class TechnicianCreate(TechnicianBase):
     password: Optional[str] = None
 
 
+class TechnicianUpdate(BaseModel):
+    name: Optional[str] = None
+    trade: Optional[str] = None
+    status: Optional[str] = None
+
+
 class TechnicianOut(TechnicianBase):
     model_config = ConfigDict(from_attributes=True)
     id: str
+    email: Optional[str] = None
     status: str
     compliance_pct: float
     active_jobs: int = 0
     docs_this_week: int = 0
     user_id: Optional[str] = None
     uploads_count: int = 0
-
-
-# ---------- Template assignment ----------
-
-class TemplateAssignRequest(BaseModel):
-    technician_id: Optional[str] = None  # None = unassign
 
 
 # ---------- Capture (voice / photo ingestion) ----------
@@ -119,6 +157,8 @@ class JobUpdate(BaseModel):
     status: Optional[str] = None
     technician_id: Optional[str] = None
     notes: Optional[str] = None
+    customer: Optional[str] = None
+    site_address: Optional[str] = None
 
 
 class JobOut(BaseModel):
@@ -148,14 +188,13 @@ class TemplateFieldUpdate(BaseModel):
 
 
 class TemplateFillRequest(BaseModel):
-    """
-    Body for POST /templates/{id}/fill. `values` is {field_id: value} where
-    field_id comes from the template's extracted "fields" list (see
-    GET /templates/{id}/fields). Most fields take a string; checkbox_option
-    fields take a truthy/falsy value (bool, "yes"/"no", 1/0, etc.).
-    """
     job_id: str
     values: dict[str, Any]
+
+
+class TemplateAssignRequest(BaseModel):
+    technician_id: Optional[str] = None
+    technician_ids: Optional[list[str]] = None
 
 
 class TemplateOut(BaseModel):
@@ -167,6 +206,7 @@ class TemplateOut(BaseModel):
     times_used: int
     technician_id: Optional[str] = None
     assigned_at: Optional[datetime] = None
+    assigned_technician_ids: list[str] = []
     updated_at: datetime
 
 
@@ -189,11 +229,23 @@ class DocumentOut(BaseModel):
     status: str
     file_url: Optional[str] = None
     created_at: datetime
+    suggested_values: Optional[dict[str, Any]] = None
 
 
 class DocumentReviewAction(BaseModel):
     action: str  # "approve" | "request_changes"
     comment: Optional[str] = None
+
+
+class DocumentReviewEventOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    document_id: str
+    user_id: Optional[str] = None
+    user_name: Optional[str] = None
+    action: str
+    comment: Optional[str] = None
+    created_at: datetime
 
 
 # ---------- Compliance ----------
@@ -202,7 +254,7 @@ class ComplianceRuleOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
     trade: str
-    required_fields: list[str]
+    required_fields: Any  # Can be list[str] or list[dict]
 
 
 class ComplianceEventOut(BaseModel):
@@ -215,7 +267,11 @@ class ComplianceEventOut(BaseModel):
     created_at: datetime
 
 
-# ---------- Capture (voice / photo ingestion) ----------
+class RecurringComplianceEventOut(BaseModel):
+    message: str
+    count: int
+    severity: str
+
 
 # ---------- Analytics ----------
 
@@ -234,3 +290,4 @@ class AnalyticsSummary(BaseModel):
     documentation_time_trend: list[TrendPoint]
     accuracy_trend: list[TrendPoint]
     compliance_trend: list[TrendPoint]
+

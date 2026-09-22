@@ -4,9 +4,12 @@ import { ActivityIndicator, View } from "react-native";
 import { useAuth } from "../../hooks/useAuth";
 import { colors } from "../../constants/theme";
 import { CaptureScreen } from "../screens/CaptureScreen";
+import { JobDetailsScreen } from "../screens/JobDetailsScreen";
 import { MyTemplatesScreen } from "../screens/MyTemplatesScreen";
 import { OperatorHomeScreen } from "../screens/OperatorHomeScreen";
 import { LoginScreen } from "../screens/LoginScreen";
+import { TemplatesScreen } from "../screens/TemplatesScreen";
+import { FillTemplateScreen } from "../screens/FillTemplateScreen";
 import type { RootStackParamList } from "./types";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -39,14 +42,34 @@ export function RootNavigator() {
       >
         {user ? (
           isOperator(user.role) ? (
-            // Owner / Admin: team console with uploads & document status.
-            <Stack.Screen
-              name="OperatorHome"
-              component={OperatorHomeScreen}
-              options={{ headerShown: false }}
-            />
+            <>
+              <Stack.Screen
+                name="OperatorHome"
+                component={OperatorHomeScreen}
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="JobDetails"
+                component={JobDetailsScreen}
+                options={{ title: "Job Details" }}
+              />
+              <Stack.Screen
+                name="Capture"
+                component={CaptureScreen}
+                options={{ title: "Job-Site Capture" }}
+              />
+              <Stack.Screen
+                name="Templates"
+                component={TemplatesScreen}
+                options={{ title: "Assigned Templates" }}
+              />
+              <Stack.Screen
+                name="FillTemplate"
+                component={FillTemplateScreen}
+                options={{ title: "Fill Template" }}
+              />
+            </>
           ) : (
-            // Technician: assigned templates -> field capture.
             <>
               <Stack.Screen
                 name="MyTemplates"

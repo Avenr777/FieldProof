@@ -20,6 +20,7 @@ class JobStatus(str, enum.Enum):
     awaiting_review = "Awaiting Review"
     compliance_flag = "Compliance Flag"
     completed = "Completed"
+    cancelled = "Cancelled"
 
 
 class DocStatus(str, enum.Enum):
@@ -61,6 +62,7 @@ class Business(Base):
     technicians = relationship("Technician", back_populates="business")
     jobs = relationship("Job", back_populates="business")
     templates = relationship("Template", back_populates="business")
+    integrations = relationship("Integration", back_populates="business")
 
 
 class User(Base):
@@ -92,9 +94,21 @@ class Technician(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     business = relationship("Business", back_populates="technicians")
-    jobs = relationship("Job", back_populates="technician")
     user = relationship("User")
+    jobs = relationship("Job", back_populates="technician")
     captures = relationship("Capture", back_populates="technician")
+
+
+class TemplateAssignment(Base):
+    __tablename__ = "template_assignments"
+
+    id = Column(String, primary_key=True, default=lambda: gen_id("ASN"))
+    template_id = Column(String, ForeignKey("templates.id", ondelete="CASCADE"), nullable=False)
+    technician_id = Column(String, ForeignKey("technicians.id", ondelete="CASCADE"), nullable=False)
+    assigned_at = Column(DateTime, default=datetime.utcnow)
+
+    template = relationship("Template", backref="assignments")
+    technician = relationship("Technician", backref="assignments")
 
 
 class Job(Base):
@@ -151,12 +165,6 @@ class Template(Base):
     field_map = Column(JSON, default=list)  # [{field, source, confidence}] - dashboard summary view
     times_used = Column(Integer, default=0)
     source_file_url = Column(String, nullable=True)
-    # Full output of docx_extractor.extract_docx() for .docx uploads: the
-    # "elements" tree + flat "fields" list (with locators) that
-    # docx_writer.fill_docx() needs to write values back in. None for
-    # non-docx uploads (those only get the simplified field_map above,
-    # via the ai_pipeline stub, since there's no write-back path for them
-    # yet).
     extraction = Column(JSON, nullable=True)
     # The one technician this template is assigned to (operator/owner action
     # from the dashboard). A technician only sees templates assigned to them.
@@ -182,6 +190,34 @@ class Document(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     job = relationship("Job", back_populates="documents")
+    review_events = relationship("DocumentReviewEvent", back_populates="document")
+
+
+class Integration(Base):
+    __tablename__ = "integrations"
+
+    id = Column(String, primary_key=True, default=lambda: gen_id("INT"))
+    business_id = Column(String, ForeignKey("businesses.id"), nullable=False)
+    name = Column(String, nullable=False)  # "CRM" | "QuickBooks" | "Google Calendar"
+    enabled = Column(Boolean, default=False)
+    config = Column(JSON, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    business = relationship("Business", back_populates="integrations")
+
+
+class DocumentReviewEvent(Base):
+    __tablename__ = "document_review_events"
+
+    id = Column(String, primary_key=True, default=lambda: gen_id("REV"))
+    document_id = Column(String, ForeignKey("documents.id"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    action = Column(String, nullable=False)  # "approve" | "request_changes"
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    document = relationship("Document", back_populates="review_events")
+    user = relationship("User")
 
 
 class ComplianceRule(Base):
@@ -190,7 +226,7 @@ class ComplianceRule(Base):
     id = Column(String, primary_key=True, default=lambda: gen_id("RULE"))
     business_id = Column(String, ForeignKey("businesses.id"))
     trade = Column(String, nullable=False)
-    required_fields = Column(JSON, default=list)  # list[str]
+    required_fields = Column(JSON, default=list)
 
 
 class ComplianceEvent(Base):

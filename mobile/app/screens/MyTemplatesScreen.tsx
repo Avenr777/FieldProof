@@ -149,16 +149,29 @@ export function MyTemplatesScreen({ navigation }: Props) {
               </View>
             </View>
           </View>
-          <Pressable
-            onPress={() => {
-              tap();
-              logout();
-            }}
-            style={({ pressed }) => [styles.signOutBtn, pressed && styles.pillPressed]}
-          >
-            <Ionicons name="log-out-outline" size={14} color="#D6D3D1" />
-            <Text style={styles.signOutText}>Sign out</Text>
-          </Pressable>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <Pressable
+              onPress={() => {
+                tap();
+                navigation.navigate("Templates");
+              }}
+              style={({ pressed }) => [styles.templatesBtn, pressed && styles.pillPressed]}
+            >
+              <Ionicons name="document-text-outline" size={14} color={colors.orangeBright} />
+              <Text style={styles.templatesText}>Templates</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                tap();
+                logout();
+              }}
+              style={({ pressed }) => [styles.signOutBtn, pressed && styles.pillPressed]}
+            >
+              <Ionicons name="log-out-outline" size={14} color="#D6D3D1" />
+              <Text style={styles.signOutText}>Sign out</Text>
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.userGreetingRow}>
@@ -273,6 +286,22 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 11,
     fontWeight: "600"
+  },
+  templatesBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: "rgba(242, 98, 42, 0.4)",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: "rgba(242, 98, 42, 0.12)"
+  },
+  templatesText: {
+    color: colors.orangeBright,
+    fontSize: 12,
+    fontWeight: "700"
   },
   signOutBtn: {
     flexDirection: "row",
