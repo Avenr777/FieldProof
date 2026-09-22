@@ -4,12 +4,17 @@ import { ActivityIndicator, View } from "react-native";
 import { useAuth } from "../../hooks/useAuth";
 import { colors } from "../../constants/theme";
 import { CaptureScreen } from "../screens/CaptureScreen";
-import { JobDetailsScreen } from "../screens/JobDetailsScreen";
-import { JobsScreen } from "../screens/JobsScreen";
+import { MyTemplatesScreen } from "../screens/MyTemplatesScreen";
+import { OperatorHomeScreen } from "../screens/OperatorHomeScreen";
 import { LoginScreen } from "../screens/LoginScreen";
 import type { RootStackParamList } from "./types";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+/** Owners and admins get the operator console; technicians get capture. */
+export function isOperator(role: string | undefined | null): boolean {
+  return role === "Owner" || role === "Admin";
+}
 
 export function RootNavigator() {
   const { user, loading } = useAuth();
@@ -33,23 +38,28 @@ export function RootNavigator() {
         }}
       >
         {user ? (
-          <>
+          isOperator(user.role) ? (
+            // Owner / Admin: team console with uploads & document status.
             <Stack.Screen
-              name="Jobs"
-              component={JobsScreen}
+              name="OperatorHome"
+              component={OperatorHomeScreen}
               options={{ headerShown: false }}
             />
-            <Stack.Screen
-              name="JobDetails"
-              component={JobDetailsScreen}
-              options={{ title: "Job Details" }}
-            />
-            <Stack.Screen
-              name="Capture"
-              component={CaptureScreen}
-              options={{ title: "Job-Site Capture" }}
-            />
-          </>
+          ) : (
+            // Technician: assigned templates -> field capture.
+            <>
+              <Stack.Screen
+                name="MyTemplates"
+                component={MyTemplatesScreen}
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="Capture"
+                component={CaptureScreen}
+                options={{ title: "Field Capture" }}
+              />
+            </>
+          )
         ) : (
           <Stack.Screen
             name="Login"

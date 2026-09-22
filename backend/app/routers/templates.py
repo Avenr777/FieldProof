@@ -26,6 +26,68 @@ def list_templates(
     )
 
 
+@router.get("/my", response_model=list[schemas.TemplateOut])
+def my_templates(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    """
+    Mobile technician home screen: only the templates the operator has
+    assigned to this technician. Capture always happens against one of
+    these.
+    """
+    tech = (
+        db.query(models.Technician)
+        .filter(models.Technician.business_id == current_user.business_id, models.Technician.user_id == current_user.id)
+        .first()
+    )
+    if not tech:
+        raise HTTPException(
+            status_code=403,
+            detail="No technician profile is linked to this account. Ask your operator to create one.",
+        )
+    return (
+        db.query(models.Template)
+        .filter(models.Template.business_id == current_user.business_id, models.Template.technician_id == tech.id)
+        .order_by(models.Template.assigned_at.desc().nullslast(), models.Template.updated_at.desc())
+        .all()
+    )
+
+
+@router.post("/{template_id}/assign", response_model=schemas.TemplateOut)
+def assign_template(
+    template_id: str,
+    payload: schemas.TemplateAssignRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.require_owner_or_admin),
+):
+    """
+    Operator action: bind a template to the one technician who should see
+    and capture against it from the mobile app. Pass technician_id: null to
+    unassign (it returns to the unassigned pool).
+    """
+    tpl = _get_owned_template(db, template_id, current_user)
+    if payload.technician_id:
+        tech = (
+            db.query(models.Technician)
+            .filter(
+                models.Technician.id == payload.technician_id,
+                models.Technician.business_id == current_user.business_id,
+            )
+            .first()
+        )
+        if not tech:
+            raise HTTPException(status_code=404, detail="Technician not found")
+        tpl.technician_id = tech.id
+        tpl.assigned_at = datetime.utcnow()
+    else:
+        tpl.technician_id = None
+        tpl.assigned_at = None
+    db.commit()
+    db.refresh(tpl)
+    return tpl
+
+
 @router.get("/{template_id}", response_model=schemas.TemplateOut)
 def get_template(
     template_id: str,

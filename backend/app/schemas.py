@@ -52,6 +52,56 @@ class TechnicianOut(TechnicianBase):
     compliance_pct: float
     active_jobs: int = 0
     docs_this_week: int = 0
+    user_id: Optional[str] = None
+    uploads_count: int = 0
+
+
+# ---------- Template assignment ----------
+
+class TemplateAssignRequest(BaseModel):
+    technician_id: Optional[str] = None  # None = unassign
+
+
+# ---------- Capture (voice / photo ingestion) ----------
+
+class CaptureStartRequest(BaseModel):
+    """Body for POST /capture/start — opens a capture session for a template."""
+    template_id: str
+
+
+class CaptureCreated(BaseModel):
+    id: str
+    job_id: str
+    kind: str
+    status: str = "queued"
+    technician_id: Optional[str] = None
+    template_id: Optional[str] = None
+
+
+# ---------- Technician field detail (uploads + document status) ----------
+
+class CaptureOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    job_id: Optional[str] = None
+    template_id: Optional[str] = None
+    kind: str
+    file_url: str
+    processed: bool
+    transcript: Optional[str] = None
+    created_at: datetime
+
+
+class TechnicianDocumentOut(BaseModel):
+    """Document with the fields the technician drill-down needs."""
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    job_id: str
+    name: str
+    overall_confidence: float
+    status: str
+    file_url: Optional[str] = None
+    created_at: datetime
 
 
 # ---------- Jobs ----------
@@ -115,6 +165,8 @@ class TemplateOut(BaseModel):
     trade: str
     field_map: list[TemplateFieldMapping]
     times_used: int
+    technician_id: Optional[str] = None
+    assigned_at: Optional[datetime] = None
     updated_at: datetime
 
 
@@ -164,13 +216,6 @@ class ComplianceEventOut(BaseModel):
 
 
 # ---------- Capture (voice / photo ingestion) ----------
-
-class CaptureCreated(BaseModel):
-    id: str
-    job_id: str
-    kind: str
-    status: str = "queued"
-
 
 # ---------- Analytics ----------
 

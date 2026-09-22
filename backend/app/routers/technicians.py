@@ -23,6 +23,11 @@ def _serialize(db: Session, tech: models.Technician) -> schemas.TechnicianOut:
         .filter(models.Job.technician_id == tech.id)
         .scalar()
     )
+    capture_count = (
+        db.query(func.count(models.Capture.id))
+        .filter(models.Capture.technician_id == tech.id)
+        .scalar()
+    )
     return schemas.TechnicianOut(
         id=tech.id,
         name=tech.name,
@@ -31,6 +36,10 @@ def _serialize(db: Session, tech: models.Technician) -> schemas.TechnicianOut:
         compliance_pct=tech.compliance_pct,
         active_jobs=active_jobs or 0,
         docs_this_week=docs_this_week or 0,
+        user_id=tech.user_id,
+        # Capture volume for the card; the per-upload breakdown lives in
+        # GET /{tech_id}/detail.
+        uploads_count=capture_count or 0,
     )
 
 
@@ -69,6 +78,10 @@ def invite_technician(
     )
     db.add(tech)
     db.commit()
+    if payload.email:
+        db.refresh(tech_user)
+        tech.user_id = tech_user.id
+        db.commit()
     db.refresh(tech)
     return _serialize(db, tech)
 
@@ -79,6 +92,79 @@ def get_technician(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
+    tech = _get_owned_tech(db, tech_id, current_user)
+    return _serialize(db, tech)
+
+
+@router.get("/{tech_id}/detail")
+def get_technician_detail(
+    tech_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    """
+    Admin dashboard drill-down for one technician: every capture they've
+    uploaded (voice/photo, with owner + template reference and processing
+    state) and every document generated from their work with its review
+    status.
+    """
+    tech = _get_owned_tech(db, tech_id, current_user)
+
+    captures = (
+        db.query(models.Capture)
+        .filter(models.Capture.technician_id == tech.id)
+        .order_by(models.Capture.created_at.desc())
+        .all()
+    )
+    documents = (
+        db.query(models.Document)
+        .join(models.Job, models.Job.id == models.Document.job_id)
+        .filter(models.Job.technician_id == tech.id)
+        .order_by(models.Document.created_at.desc())
+        .all()
+    )
+
+    templates = (
+        db.query(models.Template)
+        .filter(models.Template.technician_id == tech.id)
+        .all()
+    )
+
+    return {
+        "technician": _serialize(db, tech),
+        "assigned_templates": [
+            {"id": t.id, "name": t.name, "trade": t.trade, "assigned_at": t.assigned_at.isoformat() if t.assigned_at else None}
+            for t in templates
+        ],
+        "captures": [
+            schemas.CaptureOut(
+                id=c.id,
+                job_id=c.job_id,
+                template_id=c.template_id,
+                kind=c.kind,
+                file_url=c.file_url,
+                processed=bool(c.processed),
+                transcript=c.transcript,
+                created_at=c.created_at,
+            )
+            for c in captures
+        ],
+        "documents": [
+            schemas.TechnicianDocumentOut(
+                id=d.id,
+                job_id=d.job_id,
+                name=d.name,
+                overall_confidence=d.overall_confidence,
+                status=d.status.value,
+                file_url=d.file_url,
+                created_at=d.created_at,
+            )
+            for d in documents
+        ],
+    }
+
+
+def _get_owned_tech(db: Session, tech_id: str, current_user: models.User) -> models.Technician:
     tech = (
         db.query(models.Technician)
         .filter(models.Technician.id == tech_id, models.Technician.business_id == current_user.business_id)
@@ -86,4 +172,4 @@ def get_technician(
     )
     if not tech:
         raise HTTPException(status_code=404, detail="Technician not found")
-    return _serialize(db, tech)
+    return tech

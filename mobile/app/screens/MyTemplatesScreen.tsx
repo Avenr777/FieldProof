@@ -1,31 +1,34 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import {
   ActivityIndicator,
   FlatList,
+  Platform,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { Platform } from "react-native";
-import { getJobs, type Job } from "../../services/jobs";
+import { getMyTemplates, type Template } from "../../services/templates";
 import { ApiError } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import { colors } from "../../constants/theme";
-import { formatDate } from "../../utils/format";
-import { StatusBadge } from "../components/StatusBadge";
 import type { RootStackParamList } from "../navigation/types";
 
-type Props = NativeStackScreenProps<RootStackParamList, "Jobs">;
+type Props = NativeStackScreenProps<RootStackParamList, "MyTemplates">;
 
-const FILTER_TABS = ["All", "Scheduled", "Awaiting Review", "Completed"] as const;
-type FilterTab = typeof FILTER_TABS[number];
+const TRADE_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
+  Electrical: "flash",
+  Plumbing: "water",
+  HVAC: "thermometer",
+  "Fire Safety": "flame",
+  Solar: "sunny",
+  General: "business"
+};
 
 function tap() {
   if (Platform.OS !== "web") {
@@ -33,21 +36,20 @@ function tap() {
   }
 }
 
-export function JobsScreen({ navigation }: Props) {
+export function MyTemplatesScreen({ navigation }: Props) {
   const { user, logout } = useAuth();
-  const [jobs, setJobs] = useState<Job[]>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<FilterTab>("All");
 
   const load = useCallback(async (refresh = false) => {
     refresh ? setRefreshing(true) : setLoading(true);
     setError(null);
     try {
-      setJobs(await getJobs());
+      setTemplates(await getMyTemplates());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not load jobs.");
+      setError(e instanceof Error ? e.message : "Could not load assigned templates.");
       if (e instanceof ApiError && e.status === 401) {
         await logout();
       }
@@ -57,7 +59,7 @@ export function JobsScreen({ navigation }: Props) {
     }
   }, [logout]);
 
-  // Refresh periodically and when navigating back to this screen
+  // Refresh when returning to this screen (e.g. after an upload) and periodically
   useFocusEffect(
     useCallback(() => {
       load();
@@ -66,67 +68,56 @@ export function JobsScreen({ navigation }: Props) {
     }, [load])
   );
 
-  const filteredJobs = useMemo(() => {
-    if (activeFilter === "All") return jobs;
-    return jobs.filter((job) => job.status.toLowerCase() === activeFilter.toLowerCase());
-  }, [jobs, activeFilter]);
-
-  const openJob = (job: Job) => {
+  const openCapture = (template: Template) => {
     tap();
-    navigation.navigate("JobDetails", { job });
+    navigation.navigate("Capture", { template });
   };
 
-  const renderJob = ({ item }: { item: Job }) => {
-    const isPriority = item.status === "Awaiting Review" || item.status === "In Progress";
+  const renderTemplate = ({ item }: { item: Template }) => {
+    const icon = TRADE_ICON[item.trade] || "documents";
 
     return (
       <Pressable
-        onPress={() => openJob(item)}
-        style={({ pressed }) => [
-          styles.card,
-          isPriority && styles.cardPriority,
-          pressed && styles.cardPressed
-        ]}
+        onPress={() => openCapture(item)}
+        style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       >
-        {/* Top Header Row */}
         <View style={styles.cardHeader}>
-          <View style={styles.customerBlock}>
-            <Text style={styles.customer}>{item.customer}</Text>
-            <View style={styles.jobIdBadge}>
-              <Text style={styles.jobIdText}>{item.id}</Text>
-            </View>
+          <View style={styles.tradeBadge}>
+            <Ionicons name={icon} size={14} color={colors.orangeBright} />
+            <Text style={styles.tradeText}>{item.trade}</Text>
           </View>
-          <StatusBadge status={item.status} />
+          <View style={styles.actionPill}>
+            <Text style={styles.actionText}>Capture</Text>
+            <Ionicons name="chevron-forward" size={13} color={colors.orangeBright} />
+          </View>
         </View>
 
-        {/* Trade & Description */}
-        <View style={styles.tradeRow}>
-          <View style={styles.tradeBadge}>
-            <Ionicons name="flash" size={12} color={colors.orangeBright} />
-            <Text style={styles.tradeText}>{item.job_type}</Text>
-          </View>
-          {item.scheduled_at && (
-            <View style={styles.scheduledWrap}>
-              <Ionicons name="time-outline" size={12} color={colors.muted} />
-              <Text style={styles.scheduledText}>{formatDate(item.scheduled_at)}</Text>
-            </View>
-          )}
-        </View>
+        <Text style={styles.templateName}>{item.name}</Text>
 
         <View style={styles.divider} />
 
-        {/* Address & Quick Action */}
         <View style={styles.footerRow}>
-          <View style={styles.addressWrap}>
-            <Ionicons name="location-outline" size={13} color={colors.subtle} />
-            <Text style={styles.addressText} numberOfLines={1}>
-              {item.site_address || "On-site job"}
-            </Text>
+          <View style={styles.metaWrap}>
+            <Ionicons name="list-outline" size={13} color={colors.subtle} />
+            <Text style={styles.metaText}>{item.field_map.length} fields to fill</Text>
           </View>
-          <View style={styles.actionPill}>
-            <Text style={styles.actionText}>Open</Text>
-            <Ionicons name="chevron-forward" size={13} color={colors.orangeBright} />
+          <View style={styles.metaWrap}>
+            <Ionicons name="checkmark-done-outline" size={13} color={colors.subtle} />
+            <Text style={styles.metaText}>Used {item.times_used}×</Text>
           </View>
+        </View>
+
+        {/* Capture mode strip: what this session collects */}
+        <View style={styles.captureModes}>
+          <View style={styles.modeChip}>
+            <Ionicons name="mic" size={12} color={colors.orangeBright} />
+            <Text style={styles.modeText}>Voice</Text>
+          </View>
+          <View style={styles.modeChip}>
+            <Ionicons name="camera" size={12} color={colors.orangeBright} />
+            <Text style={styles.modeText}>Photos</Text>
+          </View>
+          <Text style={styles.modeHint}>Uploaded under your name</Text>
         </View>
       </Pressable>
     );
@@ -136,7 +127,7 @@ export function JobsScreen({ navigation }: Props) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={colors.orange} />
-        <Text style={styles.loadingText}>Loading assigned jobs…</Text>
+        <Text style={styles.loadingText}>Loading assigned templates…</Text>
       </View>
     );
   }
@@ -175,52 +166,11 @@ export function JobsScreen({ navigation }: Props) {
             Hello, {user?.full_name.split(" ")[0] || "Technician"}
           </Text>
           <Text style={styles.greetingSub}>
-            Ready to capture voice notes and job-site photos
+            Forms assigned to you by your operator — tap one to start capturing
           </Text>
         </View>
       </View>
 
-      {/* Filter Tabs */}
-      <View style={styles.filtersSection}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterScroll}
-        >
-          {FILTER_TABS.map((tab) => {
-            const count = tab === "All"
-              ? jobs.length
-              : jobs.filter((j) => j.status.toLowerCase() === tab.toLowerCase()).length;
-            const active = activeFilter === tab;
-
-            return (
-              <Pressable
-                key={tab}
-                onPress={() => {
-                  tap();
-                  setActiveFilter(tab);
-                }}
-                style={({ pressed }) => [
-                  styles.filterTab,
-                  active && styles.filterTabActive,
-                  pressed && styles.pillPressed
-                ]}
-              >
-                <Text style={[styles.filterTabText, active && styles.filterTabTextActive]}>
-                  {tab}
-                </Text>
-                <View style={[styles.filterCount, active && styles.filterCountActive]}>
-                  <Text style={[styles.filterCountText, active && styles.filterCountTextActive]}>
-                    {count}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* Jobs List / Empty / Error */}
       {error ? (
         <View style={styles.center}>
           <View style={styles.errorIconWrap}>
@@ -233,10 +183,10 @@ export function JobsScreen({ navigation }: Props) {
         </View>
       ) : (
         <FlatList
-          data={filteredJobs}
-          keyExtractor={(job) => job.id}
-          renderItem={renderJob}
-          contentContainerStyle={filteredJobs.length ? styles.listContent : styles.emptyList}
+          data={templates}
+          keyExtractor={(template) => template.id}
+          renderItem={renderTemplate}
+          contentContainerStyle={templates.length ? styles.listContent : styles.emptyList}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -247,13 +197,12 @@ export function JobsScreen({ navigation }: Props) {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <View style={styles.emptyIconCircle}>
-                <Ionicons name="clipboard-outline" size={26} color={colors.orangeBright} />
+                <Ionicons name="documents-outline" size={26} color={colors.orangeBright} />
               </View>
-              <Text style={styles.emptyTitle}>No jobs found</Text>
+              <Text style={styles.emptyTitle}>No templates assigned yet</Text>
               <Text style={styles.emptyHelp}>
-                {activeFilter === "All"
-                  ? "You have no assigned jobs in the system right now."
-                  : `No jobs currently matching "${activeFilter}".`}
+                Your operator assigns forms from the dashboard. Once one is assigned to you it
+                appears here and you can start capturing right away.
               </Text>
             </View>
           }
@@ -358,70 +307,25 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18
   },
-  filtersSection: {
-    paddingVertical: 12,
-    backgroundColor: colors.black
-  },
-  filterScroll: {
-    paddingHorizontal: 16,
-    gap: 8
-  },
-  filterTab: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.darkSurface,
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 999,
-    gap: 6
-  },
-  filterTabActive: {
-    backgroundColor: colors.orange,
-    borderColor: colors.orange
-  },
-  filterTabText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.textSecondary
-  },
-  filterTabTextActive: {
-    color: "#FFFFFF"
-  },
-  filterCount: {
-    backgroundColor: colors.darkElevated,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 999
-  },
-  filterCountActive: {
-    backgroundColor: "rgba(0,0,0,0.25)"
-  },
-  filterCountText: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: colors.muted
-  },
-  filterCountTextActive: {
-    color: "#FFFFFF"
-  },
   listContent: {
     paddingHorizontal: 16,
+    paddingTop: 16,
     paddingBottom: 32,
     gap: 12
+  },
+  emptyList: {
+    flexGrow: 1,
+    justifyContent: "center"
   },
   card: {
     backgroundColor: colors.darkSurface,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.darkBorder,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.orange,
     padding: 16,
     gap: 10
-  },
-  cardPriority: {
-    borderLeftWidth: 4,
-    borderLeftColor: colors.orange
   },
   cardPressed: {
     opacity: 0.8,
@@ -430,36 +334,7 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 10
-  },
-  customerBlock: {
-    flex: 1,
-    gap: 4
-  },
-  customer: {
-    color: colors.text,
-    fontSize: 17,
-    fontWeight: "800"
-  },
-  jobIdBadge: {
-    backgroundColor: colors.darkElevated,
-    alignSelf: "flex-start",
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2
-  },
-  jobIdText: {
-    color: colors.subtle,
-    fontSize: 10,
-    fontWeight: "700"
-  },
-  tradeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
-    gap: 8
+    alignItems: "center"
   },
   tradeBadge: {
     flexDirection: "row",
@@ -475,38 +350,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700"
   },
-  scheduledWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4
-  },
-  scheduledText: {
-    color: colors.muted,
-    fontSize: 12,
-    fontWeight: "600"
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.darkBorder
-  },
-  footerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 10
-  },
-  addressWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    flex: 1
-  },
-  addressText: {
-    color: colors.muted,
-    fontSize: 13,
-    fontWeight: "600",
-    flex: 1
-  },
   actionPill: {
     flexDirection: "row",
     alignItems: "center",
@@ -520,6 +363,59 @@ const styles = StyleSheet.create({
     color: colors.orangeBright,
     fontSize: 12,
     fontWeight: "800"
+  },
+  templateName: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: "800"
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.darkBorder
+  },
+  footerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10
+  },
+  metaWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5
+  },
+  metaText: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: "600"
+  },
+  captureModes: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap"
+  },
+  modeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.darkElevated,
+    borderWidth: 1,
+    borderColor: colors.darkBorder,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999
+  },
+  modeText: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: "700"
+  },
+  modeHint: {
+    color: colors.subtle,
+    fontSize: 11,
+    fontWeight: "600",
+    marginLeft: "auto"
   },
   center: {
     flex: 1,
@@ -558,10 +454,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "700",
     fontSize: 13
-  },
-  emptyList: {
-    flexGrow: 1,
-    justifyContent: "center"
   },
   emptyContainer: {
     alignItems: "center",

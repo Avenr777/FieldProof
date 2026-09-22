@@ -162,6 +162,15 @@ export async function createTechnician(payload) {
   });
 }
 
+/**
+ * Drill-down for one technician: their uploads (captures) and the status of
+ * every document generated from their work.
+ * @param {string} technicianId
+ */
+export async function getTechnicianDetail(technicianId) {
+  return apiFetch(`/technicians/${technicianId}/detail`);
+}
+
 // ─── Templates ───────────────────────────────────────────────────────────────
 
 /**
@@ -183,6 +192,19 @@ export async function getTemplates() {
  */
 export async function getTemplate(templateId) {
   return apiFetch(`/templates/${templateId}`);
+}
+
+/**
+ * Assign (or unassign) a template to one technician. The technician sees it
+ * as their capture form in the mobile app; pass null to unassign.
+ * @param {string} templateId
+ * @param {string|null} technicianId
+ */
+export async function assignTemplate(templateId, technicianId) {
+  return apiFetch(`/templates/${templateId}/assign`, {
+    method: "POST",
+    body: JSON.stringify({ technician_id: technicianId }),
+  });
 }
 
 /**
@@ -325,15 +347,19 @@ export async function getAnalyticsSummary() {
 // ─── Capture ─────────────────────────────────────────────────────────────────
 
 /**
- * Upload a voice note or photo capture tied to a job.
+ * Upload a voice note or photo capture tied to a job. template_id is
+ * optional — when set, the capture is linked to the template it was
+ * captured against.
  * @param {string} jobId
  * @param {"voice"|"photo"} kind
  * @param {File} file
+ * @param {string} [templateId]
  */
-export async function uploadCapture(jobId, kind, file) {
+export async function uploadCapture(jobId, kind, file, templateId = null) {
   const form = new FormData();
   form.append("job_id", jobId);
   form.append("kind", kind);
+  if (templateId) form.append("template_id", templateId);
   const fileName = file.name || (kind === "voice" ? "recording.webm" : "photo.jpg");
   form.append("file", file, fileName);
   return apiFetch("/capture", { method: "POST", body: form });

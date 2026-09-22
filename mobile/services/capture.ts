@@ -2,6 +2,7 @@ import { Platform } from "react-native";
 import { API_URL } from "../constants/config";
 import { getToken } from "./auth";
 import { ApiError } from "./api";
+import type { CaptureSession } from "./templates";
 
 export type LocalCaptureFile = {
   uri: string;
@@ -14,6 +15,8 @@ export type CaptureCreated = {
   job_id: string;
   kind: "voice" | "photo";
   status: "queued";
+  technician_id: string | null;
+  template_id: string | null;
 };
 
 function parseResponse(text: string): CaptureCreated | null {
@@ -22,7 +25,7 @@ function parseResponse(text: string): CaptureCreated | null {
 
 /** Uploads exactly one file, because the backend POST /capture contract accepts one UploadFile. */
 export async function uploadCapture(
-  jobId: string,
+  session: CaptureSession,
   kind: "voice" | "photo",
   file: LocalCaptureFile,
   onProgress?: (fraction: number) => void
@@ -31,8 +34,9 @@ export async function uploadCapture(
   if (!token) throw new ApiError(401, "Your session has expired. Please sign in again.");
 
   const form = new FormData();
-  form.append("job_id", jobId);
+  form.append("job_id", session.job_id);
   form.append("kind", kind);
+  if (session.template_id) form.append("template_id", session.template_id);
 
   if (Platform.OS === "web") {
     const res = await fetch(file.uri);

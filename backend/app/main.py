@@ -5,13 +5,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.database import Base, engine
+from app.database import Base, engine, ensure_sqlite_columns
 from app.websocket import manager
 from app.routers import auth, jobs, technicians, templates, documents, compliance, analytics, capture
 
 # Creates tables on first run if they don't exist yet (fine for dev/SQLite;
 # use Alembic migrations once this is backed by Postgres in production).
 Base.metadata.create_all(bind=engine)
+ensure_sqlite_columns()
 
 os.makedirs("uploads", exist_ok=True)
 

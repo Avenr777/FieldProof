@@ -6,7 +6,7 @@ this API. Run with: python -m app.seed
 """
 from datetime import datetime, timedelta
 
-from app.database import Base, engine, SessionLocal
+from app.database import Base, engine, SessionLocal, ensure_sqlite_columns
 from app import models
 from app.auth import hash_password
 
@@ -35,23 +35,62 @@ TEMPLATES = [
     ("Warranty Registration", "General", 7, 33),
 ]
 
+# Templates pre-assigned to the demo technician (Marcus) so the mobile app
+# has an operator-assigned home screen out of the box.
+MARCUS_TEMPLATE_NAMES = ["Electrical Inspection Report", "Standard Invoice"]
+
 
 def run():
     Base.metadata.create_all(bind=engine)
+    ensure_sqlite_columns()
     db = SessionLocal()
     try:
         existing_biz = db.query(models.Business).first()
         if existing_biz:
             # Check if technician user exists
-            if not db.query(models.User).filter(models.User.email == "marcus@meridianfieldworks.com").first():
-                db.add(models.User(
+            tech_user = db.query(models.User).filter(models.User.email == "marcus@meridianfieldworks.com").first()
+            if not tech_user:
+                tech_user = models.User(
                     business_id=existing_biz.id,
                     full_name="Marcus Vance",
                     email="marcus@meridianfieldworks.com",
                     hashed_password=hash_password("demo-password-123"),
                     role=models.Role.technician,
-                ))
+                )
+                db.add(tech_user)
+                db.flush()
                 print("Added demo technician user: marcus@meridianfieldworks.com / demo-password-123")
+
+            # Bind the technician profile to the login account (one company,
+            # one profile) and assign two templates so the mobile app's new
+            # templates-first home screen has data on existing databases.
+            tech = (
+                db.query(models.Technician)
+                .filter(models.Technician.name == "Marcus Reed", models.Technician.business_id == existing_biz.id)
+                .first()
+            )
+            if tech:
+                if tech.user_id != tech_user.id:
+                    tech.user_id = tech_user.id
+                assigned = (
+                    db.query(models.Template)
+                    .filter(
+                        models.Template.business_id == existing_biz.id,
+                        models.Template.technician_id == tech.id,
+                    )
+                    .count()
+                )
+                if assigned == 0:
+                    for name in MARCUS_TEMPLATE_NAMES:
+                        tpl = (
+                            db.query(models.Template)
+                            .filter(models.Template.business_id == existing_biz.id, models.Template.name == name)
+                            .first()
+                        )
+                        if tpl and not tpl.technician_id:
+                            tpl.technician_id = tech.id
+                            tpl.assigned_at = datetime.utcnow()
+                    print("Assigned demo templates to Marcus Reed.")
 
             # Check if snapshots exist
             if not db.query(models.MetricSnapshot).filter(models.MetricSnapshot.business_id == existing_biz.id).first():
@@ -100,12 +139,15 @@ def run():
             db.add(models.ComplianceRule(business_id=business.id, trade=trade, required_fields=fields))
 
         for name, trade, field_count, used in TEMPLATES:
+            assigned_to = techs[0].id if name in MARCUS_TEMPLATE_NAMES else None
             db.add(models.Template(
                 business_id=business.id,
                 name=name,
                 trade=trade,
                 field_map=[{"field": f"Field {i+1}", "source": "Job record", "confidence": 95.0} for i in range(min(field_count, 3))],
                 times_used=used,
+                technician_id=assigned_to,
+                assigned_at=datetime.utcnow() if assigned_to else None,
             ))
 
         job = models.Job(
@@ -142,6 +184,11 @@ def run():
             role=models.Role.technician,
         )
         db.add(tech_user)
+        db.flush()
+
+        # Bind the technician profile to the login account (one company, one
+        # profile) so /templates/my and /capture/start resolve for Marcus.
+        techs[0].user_id = tech_user.id
 
         # Seed 14 days of metric snapshots for smooth trend charts
         for day_offset in range(13, -1, -1):

@@ -19,7 +19,7 @@
         }
       ],
       [
-        "expo-av",
+        "expo-audio",
         {
           "microphonePermission": "Allow FieldProof to record job-site voice notes."
         }

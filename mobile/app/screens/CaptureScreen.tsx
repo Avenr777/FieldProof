@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { Audio } from "expo-av";
+import { createAudioPlayer, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder, type AudioPlayer } from "expo-audio";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -10,6 +10,8 @@ import * as Haptics from "expo-haptics";
 import { Platform } from "react-native";
 import { colors, gradients } from "../../constants/theme";
 import { uploadCapture, type LocalCaptureFile } from "../../services/capture";
+import { startCaptureSession, type CaptureSession } from "../../services/templates";
+import { useAuth } from "../../hooks/useAuth";
 import { formatDuration } from "../../utils/format";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { Screen } from "../components/Screen";
@@ -25,7 +27,10 @@ function tap() {
 }
 
 export function CaptureScreen({ route, navigation }: Props) {
-  const { job } = route.params;
+  const { template } = route.params;
+  const { user } = useAuth();
+  const [session, setSession] = useState<CaptureSession | null>(null);
+  const [sessionError, setSessionError] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [audio, setAudio] = useState<LocalCaptureFile | null>(null);
   const [audioDuration, setAudioDuration] = useState(0);
@@ -35,11 +40,22 @@ export function CaptureScreen({ route, navigation }: Props) {
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recordingRef = useRef<Audio.Recording | null>(null);
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const soundRef = useRef<AudioPlayer | null>(null);
   const secondsRef = useRef(0);
   const stoppingRef = useRef(false);
   const uploadRef = useRef(false);
+
+  // Open the capture session on mount: the backend binds it to the signed-in
+  // technician and the assigned template, so every file uploaded from this
+  // screen is stored under that owner trail.
+  useEffect(() => {
+    let cancelled = false;
+    startCaptureSession(template.id)
+      .then((s) => { if (!cancelled) setSession(s); })
+      .catch((e) => { if (!cancelled) setSessionError(e instanceof Error ? e.message : "Could not open capture session."); });
+    return () => { cancelled = true; };
+  }, [template.id]);
 
   // Unmount-only cleanup: release the mic, timer, and any loaded sound exactly once.
   // Uses refs (not state deps) so changing recording state never re-runs this and
@@ -47,20 +63,20 @@ export function CaptureScreen({ route, navigation }: Props) {
   useEffect(() => {
     return () => {
       if (timer.current) { clearInterval(timer.current); timer.current = null; }
-      soundRef.current?.unloadAsync().catch(() => {});
-      recordingRef.current?.stopAndUnloadAsync().catch(() => {});
+      soundRef.current?.release();
+      soundRef.current = null;
     };
   }, []);
 
   const startRecording = async () => {
-    const permission = await Audio.requestPermissionsAsync();
+    const permission = await requestRecordingPermissionsAsync();
     if (!permission.granted) return Alert.alert("Microphone required", "Allow microphone access to record a voice note.");
     try {
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const created = new Audio.Recording();
-      await created.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      await created.startAsync();
-      recordingRef.current = created;
+      if (Platform.OS !== "web") {
+        await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      }
+      await recorder.prepareToRecordAsync();
+      recorder.record();
       setIsRecording(true);
       setSeconds(0);
       secondsRef.current = 0;
@@ -71,14 +87,13 @@ export function CaptureScreen({ route, navigation }: Props) {
     } catch { Alert.alert("Recording unavailable", "We could not start recording on this device."); }
   };
   const stopRecording = async () => {
-    const current = recordingRef.current;
-    if (!current || stoppingRef.current) return;
+    if (!isRecording || stoppingRef.current) return;
     stoppingRef.current = true;
     if (timer.current) { clearInterval(timer.current); timer.current = null; }
     try {
-      // Resolves with the final status, including the recording's real duration.
-      const status = await current.stopAndUnloadAsync();
-      const uri = current.getURI();
+      await recorder.stop();
+      const uri = recorder.uri;
+      const status = recorder.getStatus();
       const recorded = status?.durationMillis
         ? Math.max(1, Math.round(status.durationMillis / 1000))
         : Math.max(1, secondsRef.current);
@@ -94,17 +109,16 @@ export function CaptureScreen({ route, navigation }: Props) {
     } catch {
       Alert.alert("Recording error", "The voice note could not be saved.");
     } finally {
-      recordingRef.current = null;
       setIsRecording(false);
       stoppingRef.current = false;
     }
   };
   const playAudio = async () => {
     if (!audio) return;
-    try { await soundRef.current?.unloadAsync(); } catch { /* already unloaded */ }
-    const { sound: next } = await Audio.Sound.createAsync({ uri: audio.uri });
-    soundRef.current = next;
-    await next.playAsync();
+    try { soundRef.current?.release(); } catch { /* already released */ }
+    const player = createAudioPlayer({ uri: audio.uri });
+    soundRef.current = player;
+    player.play();
   };
   const pickGallery = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -113,7 +127,7 @@ export function CaptureScreen({ route, navigation }: Props) {
     if (!result.canceled) setPhotos((current) => [...current, ...result.assets.map((asset, index) => ({ uri: asset.uri, name: asset.fileName || `gallery-photo-${Date.now()}-${index}.jpg`, mimeType: asset.mimeType || "image/jpeg" }))]);
   };
   const uploadAll = async () => {
-    if (uploadRef.current) return; // ignore double-taps while an upload is in flight
+    if (uploadRef.current || !session) return; // ignore double-taps while an upload is in flight
     const queue: Array<{ kind: "voice" | "photo"; file: LocalCaptureFile }> = [ ...(audio ? [{ kind: "voice" as const, file: audio }] : []), ...photos.map((file) => ({ kind: "photo" as const, file })) ];
     if (!queue.length) {
       setUploadStatus("Nothing to upload — record a voice note or add at least one photo first.");
@@ -125,7 +139,7 @@ export function CaptureScreen({ route, navigation }: Props) {
     try {
       for (let i = 0; i < queue.length; i++) {
         const entry = queue[i];
-        await uploadCapture(job.id, entry.kind, entry.file, (fraction) => setUploadStatus(`Uploading ${i + 1} of ${queue.length} · ${Math.round(fraction * 100)}%`));
+        await uploadCapture(session, entry.kind, entry.file, (fraction) => setUploadStatus(`Uploading ${i + 1} of ${queue.length} · ${Math.round(fraction * 100)}%`));
       }
       setUploadStatus("All captures uploaded and queued for processing."); setAudio(null); setPhotos([]); setSeconds(0); setAudioDuration(0); secondsRef.current = 0;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -148,7 +162,7 @@ export function CaptureScreen({ route, navigation }: Props) {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.screen}>
-      {/* Job Context Header */}
+      {/* Template Context Header */}
       <LinearGradient
         colors={gradients.sheen}
         start={{ x: 0, y: 0 }}
@@ -156,13 +170,21 @@ export function CaptureScreen({ route, navigation }: Props) {
         style={styles.jobCard}
       >
         <View style={styles.jobBadge}>
-          <Text style={styles.jobBadgeText}>JOB SITE</Text>
+          <Text style={styles.jobBadgeText}>{template.trade.toUpperCase()} · ASSIGNED BY OPERATOR</Text>
         </View>
-        <Text style={styles.jobCustomer}>{job.customer}</Text>
+        <Text style={styles.jobCustomer}>{template.name}</Text>
         <View style={styles.jobAddressWrap}>
-          <Ionicons name="location-outline" size={13} color={colors.muted} />
-          <Text style={styles.jobAddress}>{job.site_address || job.job_type}</Text>
+          <Ionicons name="person-circle-outline" size={13} color={colors.muted} />
+          <Text style={styles.jobAddress}>
+            Captures upload under {user?.full_name || "your name"} · {template.field_map.length} fields to fill
+          </Text>
         </View>
+        {sessionError && (
+          <View style={styles.sessionErrorRow}>
+            <Ionicons name="alert-circle" size={13} color={colors.danger} />
+            <Text style={styles.sessionErrorText}>{sessionError}</Text>
+          </View>
+        )}
       </LinearGradient>
 
       {/* Voice Note Section */}
@@ -322,7 +344,7 @@ export function CaptureScreen({ route, navigation }: Props) {
         }`}
         onPress={uploadAll}
         loading={uploading}
-        disabled={isRecording || [audio, ...photos].filter(Boolean).length === 0}
+        disabled={isRecording || !session || [audio, ...photos].filter(Boolean).length === 0}
         variant="primary"
         style={styles.uploadBtn}
       />
@@ -425,7 +447,25 @@ const styles = StyleSheet.create({
   jobAddress: {
     color: colors.muted,
     fontSize: 13,
-    fontWeight: "600"
+    fontWeight: "600",
+    flex: 1
+  },
+  sessionErrorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: colors.dangerLight,
+    borderWidth: 1,
+    borderColor: colors.dangerBorder,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5
+  },
+  sessionErrorText: {
+    color: colors.danger,
+    fontSize: 11,
+    fontWeight: "600",
+    flex: 1
   },
   section: {
     backgroundColor: colors.darkSurface,

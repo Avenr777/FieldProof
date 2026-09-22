@@ -11,14 +11,19 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { useAuth } from "../../hooks/useAuth";
+import { isOperator } from "../navigation/RootNavigator";
 import { colors } from "../../constants/theme";
+
+type RoleDoor = "technician" | "operator";
 
 export function LoginScreen() {
   const { login } = useAuth();
-  const [email, setEmail] = useState("marcus@meridianfieldworks.com");
-  const [password, setPassword] = useState("demo-password-123");
+  const [door, setDoor] = useState<RoleDoor>("technician");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [emailFocused, setEmailFocused] = useState(false);
@@ -39,9 +44,11 @@ export function LoginScreen() {
     }
   };
 
-  const fillDemo = (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword("demo-password-123");
+  const chooseDoor = (next: RoleDoor) => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    }
+    setDoor(next);
     setError(null);
   };
 
@@ -85,59 +92,63 @@ export function LoginScreen() {
           {/* Login Card */}
           <View style={styles.card}>
             <View style={styles.cardHeader}>
-              <Text style={styles.formTitle}>Technician Sign In</Text>
-              <Text style={styles.formHelp}>Access your assigned field jobs</Text>
+              <Text style={styles.formTitle}>
+                {door === "technician" ? "Technician Sign In" : "Operator Sign In"}
+              </Text>
+              <Text style={styles.formHelp}>
+                {door === "technician"
+                  ? "Capture against templates assigned by your operator"
+                  : "Monitor team uploads, documents, and compliance"}
+              </Text>
             </View>
 
-            {/* Quick Demo Fill Pills */}
-            <View style={styles.demoRow}>
-              <Text style={styles.demoLabel}>DEMO ACCOUNTS</Text>
-              <View style={styles.pillsContainer}>
-                <Pressable
-                  onPress={() => fillDemo("marcus@meridianfieldworks.com")}
-                  style={({ pressed }) => [
-                    styles.demoPill,
-                    email.includes("marcus") && styles.demoPillActive,
-                    pressed && styles.pillPressed
-                  ]}
-                >
+            {/* Role doors: two ways in */}
+            <View style={styles.doorsRow}>
+              <Pressable
+                onPress={() => chooseDoor("technician")}
+                style={({ pressed }) => [
+                  styles.door,
+                  door === "technician" && styles.doorActive,
+                  pressed && styles.pillPressed
+                ]}
+              >
+                <View style={[styles.doorIconWrap, door === "technician" && styles.doorIconWrapActive]}>
                   <Ionicons
-                    name="flash"
-                    size={11}
-                    color={email.includes("marcus") ? colors.orangeBright : colors.muted}
+                    name="construct"
+                    size={18}
+                    color={door === "technician" ? colors.orangeBright : colors.muted}
                   />
-                  <Text
-                    style={[
-                      styles.demoPillText,
-                      email.includes("marcus") && styles.demoPillTextActive
-                    ]}
-                  >
-                    Marcus · Tech
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => fillDemo("priya@meridianfieldworks.com")}
-                  style={({ pressed }) => [
-                    styles.demoPill,
-                    email.includes("priya") && styles.demoPillActive,
-                    pressed && styles.pillPressed
-                  ]}
-                >
+                </View>
+                <Text style={[styles.doorTitle, door === "technician" && styles.doorTitleActive]}>
+                  Technician
+                </Text>
+                <Text style={[styles.doorSub, door === "technician" && styles.doorSubActive]}>
+                  Voice & photo capture
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => chooseDoor("operator")}
+                style={({ pressed }) => [
+                  styles.door,
+                  door === "operator" && styles.doorActive,
+                  pressed && styles.pillPressed
+                ]}
+              >
+                <View style={[styles.doorIconWrap, door === "operator" && styles.doorIconWrapActive]}>
                   <Ionicons
-                    name="shield"
-                    size={11}
-                    color={email.includes("priya") ? colors.orangeBright : colors.muted}
+                    name="shield-checkmark"
+                    size={18}
+                    color={door === "operator" ? colors.orangeBright : colors.muted}
                   />
-                  <Text
-                    style={[
-                      styles.demoPillText,
-                      email.includes("priya") && styles.demoPillTextActive
-                    ]}
-                  >
-                    Priya · Owner
-                  </Text>
-                </Pressable>
-              </View>
+                </View>
+                <Text style={[styles.doorTitle, door === "operator" && styles.doorTitleActive]}>
+                  Operator
+                </Text>
+                <Text style={[styles.doorSub, door === "operator" && styles.doorSubActive]}>
+                  Console & approvals
+                </Text>
+              </Pressable>
             </View>
 
             {/* Input Fields */}
@@ -328,50 +339,56 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2
   },
-  demoRow: {
-    backgroundColor: colors.black,
-    padding: 10,
-    borderRadius: 12,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: colors.darkBorder
-  },
-  demoLabel: {
-    color: colors.muted,
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.6
-  },
-  pillsContainer: {
+  doorsRow: {
     flexDirection: "row",
-    gap: 8,
-    flexWrap: "wrap"
+    gap: 10
   },
-  demoPill: {
-    flexDirection: "row",
+  door: {
+    flex: 1,
     alignItems: "center",
-    gap: 5,
-    backgroundColor: colors.darkElevated,
-    borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderWidth: 1,
-    borderColor: colors.darkBorder
+    gap: 3,
+    backgroundColor: colors.black,
+    borderWidth: 1.5,
+    borderColor: colors.darkBorder,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 8
   },
-  demoPillActive: {
+  doorActive: {
     borderColor: colors.orange,
     backgroundColor: colors.orangeLight
   },
+  doorIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    backgroundColor: colors.darkElevated,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 3
+  },
+  doorIconWrapActive: {
+    backgroundColor: colors.orange
+  },
+  doorTitle: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: "800"
+  },
+  doorTitleActive: {
+    color: colors.orangeBright
+  },
+  doorSub: {
+    color: colors.subtle,
+    fontSize: 10,
+    fontWeight: "600",
+    textAlign: "center"
+  },
+  doorSubActive: {
+    color: colors.textSecondary
+  },
   pillPressed: {
     opacity: 0.75
-  },
-  demoPillText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: "700"
-  },
-  demoPillTextActive: {
-    color: colors.orangeBright
   },
   fieldGroup: {
     gap: 6

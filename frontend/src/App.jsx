@@ -1367,7 +1367,7 @@ function TemplateFieldsList({ fields, templateId, onFieldUpdated, canEdit = true
   );
 }
 
-function TemplateDetailPanel({ template, jobs, onClose, onGenerated, currentUser }) {
+function TemplateDetailPanel({ template, jobs, onClose, onGenerated, currentUser, technicians = [], onAssigned }) {
   const [fieldsData, setFieldsData] = useState(null);
   const [fieldsLoading, setFieldsLoading] = useState(true);
   const [fieldsError, setFieldsError] = useState(null);
@@ -1377,6 +1377,23 @@ function TemplateDetailPanel({ template, jobs, onClose, onGenerated, currentUser
   const [filling, setFilling] = useState(false);
   const [fillError, setFillError] = useState(null);
   const [generatedDoc, setGeneratedDoc] = useState(null);
+  const [assignedTo, setAssignedTo] = useState(template.technician_id || "");
+  const [assigning, setAssigning] = useState(false);
+  const [assignError, setAssignError] = useState(null);
+
+  async function handleAssign(technicianId) {
+    setAssigning(true);
+    setAssignError(null);
+    try {
+      const updated = await api.assignTemplate(template.id, technicianId || null);
+      setAssignedTo(updated.technician_id || "");
+      if (onAssigned) onAssigned();
+    } catch (err) {
+      setAssignError(err.message || "Could not assign template");
+    } finally {
+      setAssigning(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -1442,6 +1459,39 @@ function TemplateDetailPanel({ template, jobs, onClose, onGenerated, currentUser
       <p className="text-xs text-stone-500 mb-5">
         {showFillForm ? "Fields detected automatically from the uploaded .docx form." : "Every blank, checkbox, and table field found in the uploaded document. Click the pencil icon to edit field labels or types."}
       </p>
+
+      {/* --- Assignment: the one technician who sees this form in the mobile app --- */}
+      {!showFillForm && (
+        <div className="mb-5 border border-stone-100 bg-stone-50/60 rounded-xl px-4 py-3.5">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <UserPlus className="h-4 w-4 text-orange-600 shrink-0" />
+              <p className="text-sm font-semibold text-stone-700">Assigned technician</p>
+            </div>
+            <select
+              value={assignedTo}
+              disabled={assigning}
+              onChange={(e) => handleAssign(e.target.value)}
+              className="text-sm border border-stone-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200 max-w-56"
+            >
+              <option value="">Unassigned</option>
+              {technicians.map((t) => (
+                <option key={t.id} value={t.id}>{t.name} · {t.trade}</option>
+              ))}
+            </select>
+            {assignedTo && (
+              <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+                Visible on their mobile app
+              </span>
+            )}
+            {assigning && <Loader2 className="h-4 w-4 text-stone-400 fs-spin" />}
+          </div>
+          {assignError && <p className="text-xs text-red-700 mt-2">{assignError}</p>}
+          <p className="text-xs text-stone-400 mt-2">
+            A technician is bound to one company and sees only the templates assigned to them — their captures upload under their name.
+          </p>
+        </div>
+      )}
 
       {fieldsLoading && <Spinner label="Loading fields..." />}
 
@@ -1931,7 +1981,7 @@ function CaptureView({ jobs, preselectedJobId, onCaptureSuccess, onGoToDocuments
   );
 }
 
-function TemplatesView({ templates, jobs, onTemplatesChanged, onDocumentsChanged, loading, error, onRetry }) {
+function TemplatesView({ templates, jobs, technicians, onTemplatesChanged, onDocumentsChanged, loading, error, onRetry }) {
   const [mode, setMode] = useState(null); // null | "upload" | { type: "detail", template }
 
   function handleUploaded(tpl) {
@@ -1971,6 +2021,13 @@ function TemplatesView({ templates, jobs, onTemplatesChanged, onDocumentsChanged
               </div>
               <p className="font-semibold text-stone-800 mb-1">{t.name}</p>
               <p className="text-xs text-stone-500 mb-4">{t.field_map.length} mapped fields · used {t.times_used} times</p>
+              {t.technician_id ? (
+                <p className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1 mb-3">
+                  <UserPlus className="h-3 w-3" /> {technicians.find((tech) => tech.id === t.technician_id)?.name || "Assigned"}
+                </p>
+              ) : (
+                <p className="text-xs font-medium text-stone-500 bg-stone-100 px-2 py-0.5 rounded-full inline-flex mb-3">Unassigned</p>
+              )}
               <div className="flex items-center justify-between text-xs text-stone-400 pt-3 border-t border-stone-100">
                 <span>Updated {relativeTime(t.updated_at)}</span>
                 <span className="font-semibold text-orange-600 flex items-center gap-1">View fields <ChevronRight className="h-3.5 w-3.5" /></span>
@@ -1995,8 +2052,10 @@ function TemplatesView({ templates, jobs, onTemplatesChanged, onDocumentsChanged
         <TemplateDetailPanel
           template={mode.template}
           jobs={jobs}
+          technicians={technicians}
           onClose={() => setMode(null)}
           onGenerated={onDocumentsChanged}
+          onAssigned={onTemplatesChanged}
         />
       )}
     </div>
@@ -2152,10 +2211,143 @@ function DocumentsView({ documents, jobs, onDocumentsChanged, loading, error, on
    DASHBOARD — TECHNICIANS
    ====================================================================== */
 
+function TechnicianDetailPanel({ tech, onClose }) {
+  const [detail, setDetail] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [preview, setPreview] = useState(null); // capture being previewed
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    api.getTechnicianDetail(tech.id)
+      .then((d) => { if (!cancelled) setDetail(d); })
+      .catch((err) => { if (!cancelled) setError(err.message || "Could not load technician activity"); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [tech.id]);
+
+  const DOC_TONE = {
+    "Pending Review": "bg-amber-50 text-amber-700 border-amber-200",
+    "Approved": "bg-emerald-50 text-emerald-700 border-emerald-200",
+    "Sent": "bg-blue-50 text-blue-700 border-blue-200",
+  };
+
+  return (
+    <Card className="p-6">
+      <div className="flex items-start justify-between mb-5">
+        <div className="flex items-center gap-3">
+          <div className="h-11 w-11 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold">
+            {tech.name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase()}
+          </div>
+          <div>
+            <p className="font-semibold text-stone-800">{tech.name}</p>
+            <p className="text-xs text-stone-500">Uploads, assigned forms, and document status</p>
+          </div>
+        </div>
+        <button onClick={onClose}><X className="h-5 w-5 text-stone-400" /></button>
+      </div>
+
+      {loading && <Spinner label="Loading uploads and documents..." />}
+      {error && <ErrorBanner message={error} onRetry={onClose} />}
+
+      {detail && (
+        <div className="space-y-5">
+          {/* Assigned templates */}
+          <div>
+            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Assigned templates</p>
+            {detail.assigned_templates.length === 0 ? (
+              <p className="text-sm text-stone-400">No templates assigned — assign one from the Templates view.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {detail.assigned_templates.map((t) => (
+                  <span key={t.id} className="inline-flex items-center gap-1.5 text-xs font-semibold text-orange-700 bg-orange-50 border border-orange-200 px-2.5 py-1 rounded-full">
+                    <FileText className="h-3 w-3" /> {t.name}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Uploads */}
+          <div>
+            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Uploads ({detail.captures.length})</p>
+            {detail.captures.length === 0 ? (
+              <p className="text-sm text-stone-400">No captures uploaded yet.</p>
+            ) : (
+              <div className="divide-y divide-stone-50 border border-stone-100 rounded-xl overflow-hidden">
+                {detail.captures.map((c) => (
+                  <div key={c.id} className="flex items-center gap-3 px-3.5 py-2.5 bg-white">
+                    <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${c.kind === "voice" ? "bg-orange-50 text-orange-600" : "bg-blue-50 text-blue-600"}`}>
+                      {c.kind === "voice" ? <Mic className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-stone-700 truncate">
+                        {c.kind === "voice" ? "Voice note" : "Photo"}
+                        <span className="text-stone-400"> · {c.id}</span>
+                      </p>
+                      <p className="text-xs text-stone-400 truncate">
+                        {relativeTime(c.created_at)}
+                        {c.kind === "voice" && c.transcript ? ` · "${c.transcript.slice(0, 60)}${c.transcript.length > 60 ? "…" : ""}"` : ""}
+                      </p>
+                    </div>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${c.processed ? "text-emerald-700 bg-emerald-50" : "text-stone-500 bg-stone-100"}`}>
+                      {c.processed ? "Processed" : "Queued"}
+                    </span>
+                    <a
+                      href={`${api.API_BASE_URL}${c.file_url}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-1.5 rounded-lg hover:bg-stone-100 shrink-0"
+                      title={c.kind === "voice" ? "Play voice note" : "View photo"}
+                    >
+                      {c.kind === "voice" ? <Volume2 className="h-4 w-4 text-stone-500" /> : <Eye className="h-4 w-4 text-stone-500" />}
+                    </a>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Document status */}
+          <div>
+            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Document status ({detail.documents.length})</p>
+            {detail.documents.length === 0 ? (
+              <p className="text-sm text-stone-400">No documents generated from this technician's work yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {detail.documents.map((d) => (
+                  <div key={d.id} className="flex items-center justify-between gap-3 border border-stone-100 rounded-xl px-3.5 py-2.5">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-stone-700 truncate">{d.name}</p>
+                      <p className="text-xs text-stone-400">{d.id} · {relativeTime(d.created_at)}</p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <ConfidenceBar value={d.overall_confidence} />
+                      <StatusPill label={d.status} />
+                      {d.file_url && (
+                        <a href={`${api.API_BASE_URL}${d.file_url}`} target="_blank" rel="noreferrer" className="p-1.5 rounded-lg hover:bg-stone-100">
+                          <Download className="h-4 w-4 text-stone-500" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function TechniciansView({ technicians, onTechniciansChanged, loading, error, onRetry }) {
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
+  const [detailTech, setDetailTech] = useState(null);
 
   async function invite(e) {
     e.preventDefault();
@@ -2213,11 +2405,17 @@ function TechniciansView({ technicians, onTechniciansChanged, loading, error, on
         </Card>
       )}
 
+      {detailTech && <TechnicianDetailPanel tech={detailTech} onClose={() => setDetailTech(null)} />}
+
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {technicians.map((t) => {
           const Icon = TRADE_ICON[t.trade] || Building2;
           return (
-            <Card key={t.id} className="p-5">
+            <Card
+              key={t.id}
+              className={`p-5 cursor-pointer hover:border-orange-200 ${detailTech?.id === t.id ? "border-orange-300 ring-2 ring-orange-100" : ""}`}
+              onClick={() => setDetailTech(detailTech?.id === t.id ? null : t)}
+            >
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div className="h-11 w-11 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold">
@@ -2230,19 +2428,27 @@ function TechniciansView({ technicians, onTechniciansChanged, loading, error, on
                 </div>
                 <StatusPill label={t.status} />
               </div>
-              <div className="grid grid-cols-3 gap-2 text-center border-t border-stone-100 pt-4">
+              <div className="grid grid-cols-4 gap-2 text-center border-t border-stone-100 pt-4">
+                <div>
+                  <p className="fs-display font-semibold text-stone-900">{t.uploads_count ?? 0}</p>
+                  <p className="text-xs text-stone-500">Uploads</p>
+                </div>
                 <div>
                   <p className="fs-display font-semibold text-stone-900">{t.active_jobs}</p>
                   <p className="text-xs text-stone-500">Active jobs</p>
                 </div>
                 <div>
                   <p className="fs-display font-semibold text-stone-900">{t.docs_this_week}</p>
-                  <p className="text-xs text-stone-500">Docs / week</p>
+                  <p className="text-xs text-stone-500">Docs / wk</p>
                 </div>
                 <div>
                   <p className="fs-display font-semibold text-stone-900">{t.compliance_pct}%</p>
                   <p className="text-xs text-stone-500">Compliance</p>
                 </div>
+              </div>
+              <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs">
+                <span className="text-stone-400">Tap to view uploads & document status</span>
+                <span className="font-semibold text-orange-600 flex items-center gap-1">Open <ChevronRight className="h-3.5 w-3.5" /></span>
               </div>
             </Card>
           );
@@ -2626,7 +2832,7 @@ function Dashboard({ onLogout }) {
     ),
     templates: (
       <TemplatesView
-        templates={state.templates} jobs={state.jobs}
+        templates={state.templates} jobs={state.jobs} technicians={state.technicians}
         onTemplatesChanged={refetch.templates} onDocumentsChanged={refetch.documents}
         loading={loading.templates} error={errors.templates} onRetry={refetch.templates}
       />

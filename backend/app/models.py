@@ -82,6 +82,9 @@ class Technician(Base):
 
     id = Column(String, primary_key=True, default=lambda: gen_id("TECH"))
     business_id = Column(String, ForeignKey("businesses.id"))
+    # A technician belongs to exactly one company; this links the Technician
+    # profile to the User login account for that same person.
+    user_id = Column(String, ForeignKey("users.id"), nullable=True, index=True)
     name = Column(String, nullable=False)
     trade = Column(String, nullable=False)
     status = Column(Enum(TechStatus), default=TechStatus.available)
@@ -90,6 +93,8 @@ class Technician(Base):
 
     business = relationship("Business", back_populates="technicians")
     jobs = relationship("Job", back_populates="technician")
+    user = relationship("User")
+    captures = relationship("Capture", back_populates="technician")
 
 
 class Job(Base):
@@ -118,6 +123,11 @@ class Capture(Base):
 
     id = Column(String, primary_key=True, default=lambda: gen_id("CAP"))
     job_id = Column(String, ForeignKey("jobs.id"))
+    # Owner of the upload — the technician (and their company) who produced
+    # it. Kept directly on the row so storage stays auditable even if the
+    # grouping job/template links change later.
+    technician_id = Column(String, ForeignKey("technicians.id"), nullable=True, index=True)
+    template_id = Column(String, ForeignKey("templates.id"), nullable=True, index=True)
     kind = Column(String, nullable=False)  # "voice" | "photo"
     file_url = Column(String, nullable=False)
     transcript = Column(Text, nullable=True)       # filled in by Whisper task
@@ -127,6 +137,8 @@ class Capture(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     job = relationship("Job", back_populates="captures")
+    technician = relationship("Technician", back_populates="captures")
+    template = relationship("Template")
 
 
 class Template(Base):
@@ -146,9 +158,14 @@ class Template(Base):
     # via the ai_pipeline stub, since there's no write-back path for them
     # yet).
     extraction = Column(JSON, nullable=True)
+    # The one technician this template is assigned to (operator/owner action
+    # from the dashboard). A technician only sees templates assigned to them.
+    technician_id = Column(String, ForeignKey("technicians.id"), nullable=True, index=True)
+    assigned_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow)
 
     business = relationship("Business", back_populates="templates")
+    technician = relationship("Technician")
 
 
 class Document(Base):
