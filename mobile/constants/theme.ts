@@ -1,43 +1,49 @@
 /**
- * FieldProof dark theme — black surfaces, brand orange accents.
- * Layering: background (deepest) -> surface (cards) -> surfaceMuted/elevated (chips, insets).
+ * FieldProof dark theme — black surfaces, brand orange accents, glassmorphism.
+ * Layering: background (deepest) -> surface (cards) -> glass (translucent) -> elevated (chips).
  */
 export const colors = {
-  // Brand Orange & Amber
+  // ── Brand Orange & Amber ──
   orange: "#F2622A",
-  orangeBright: "#FF7A3D", // lighter orange for text/icons on dark surfaces
+  orangeBright: "#FF7A3D",
   orangeDark: "#D94A14",
-  orangeLight: "rgba(242, 98, 42, 0.14)", // translucent orange tint bg
+  orangeLight: "rgba(242, 98, 42, 0.14)",
   orangeBorder: "rgba(242, 98, 42, 0.38)",
   amber: "#FBBF6B",
+  amberLight: "rgba(251, 191, 107, 0.10)",
 
-  // Layered black surfaces
-  black: "#0C0A09", // stone-950 — screen background
-  dark: "#141211", // between black and dark
-  darkSurface: "#1C1917", // stone-900 — cards
-  darkElevated: "#292524", // stone-800 — chips, insets
+  // ── Layered black surfaces ──
+  black: "#0C0A09",
+  dark: "#141211",
+  darkSurface: "#1C1917",
+  darkElevated: "#292524",
   darkBorder: "#383432",
 
-  // Compatibility aliases (mapped to black/orange theme)
+  // ── Glassmorphism ──
+  glass: "rgba(28, 25, 23, 0.74)",
+  glassBorder: "rgba(56, 52, 50, 0.50)",
+  glassHighlight: "rgba(255,255,255,0.04)",
+
+  // ── Compatibility aliases ──
   navy: "#0C0A09",
   navyLight: "#1C1917",
   blue: "#F2622A",
   blueDark: "#D94A14",
   teal: "#F2622A",
 
-  // Canvas & Surfaces (dark equivalents)
+  // ── Canvas & Surfaces ──
   background: "#0C0A09",
   surface: "#1C1917",
   surfaceMuted: "#292524",
 
-  // Typography (dark-tuned hierarchy)
-  text: "#FAFAF9", // stone-50
-  textSecondary: "#D6D3D1", // stone-300
-  muted: "#A8A29E", // stone-400
-  subtle: "#78716C", // stone-500
+  // ── Typography ──
+  text: "#FAFAF9",
+  textSecondary: "#D6D3D1",
+  muted: "#A8A29E",
+  subtle: "#78716C",
   border: "#383432",
 
-  // Semantic Status Tones (translucent tints for dark surfaces)
+  // ── Semantic Status Tones ──
   success: "#34D399",
   successLight: "rgba(52, 211, 153, 0.12)",
   successBorder: "rgba(52, 211, 153, 0.35)",
@@ -57,24 +63,37 @@ export const colors = {
   white: "#FFFFFF"
 };
 
-/** Gradient pairs (start -> end) matching the website's orange-to-amber brand. */
+/** Gradient pairs matching the orange-to-amber brand. */
 export const gradients = {
-  /** Buttons & CTAs: orange -> deep orange */
   brand: ["#FF7A3D", "#E8500F"] as const,
-  /** Glows, washes & progress: orange -> amber */
   glow: ["#F2622A", "#FBBF6B"] as const,
-  /** Subtle sheen for hero cards on black */
-  sheen: ["#1C1917", "#292524"] as const
+  sheen: ["#1C1917", "#292524"] as const,
+  warmTint: ["rgba(242, 98, 42, 0.06)", "rgba(242, 98, 42, 0.01)"] as const,
+  glassSheen: ["rgba(255,255,255,0.06)", "rgba(255,255,255,0)"] as const
 };
 
+/** Consistent border radii. */
 export const radius = {
   sm: 10,
-  md: 14,
-  lg: 18,
-  xl: 22,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 26,
   pill: 999
 };
 
+/** Consistent 4px-base spacing scale. */
+export const spacing = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 24,
+  xxxl: 32
+};
+
+/** Shadow presets — from subtle lift to premium orange glow. */
 export const shadows = {
   card: {
     shadowColor: "#000000",
@@ -85,16 +104,38 @@ export const shadows = {
   },
   cardHover: {
     shadowColor: "#F2622A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 14,
-    elevation: 5
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8
   },
   orangeGlow: {
     shadowColor: "#F2622A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 5
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.40,
+    shadowRadius: 14,
+    elevation: 8
+  },
+  softGlow: {
+    shadowColor: "#F2622A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3
+  },
+  float: {
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.50,
+    shadowRadius: 20,
+    elevation: 10
   }
+};
+
+/** Animation timing constants (ms). */
+export const timing = {
+  fast: 150,
+  normal: 250,
+  slow: 400,
+  slower: 600
 };

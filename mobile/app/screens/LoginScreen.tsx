@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -14,10 +14,14 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { useAuth } from "../../hooks/useAuth";
-import { isOperator } from "../navigation/RootNavigator";
-import { colors } from "../../constants/theme";
-
+import { colors, gradients, shadows, radius, spacing, timing } from "../../constants/theme";
 type RoleDoor = "technician" | "operator";
+
+function tap() {
+  if (Platform.OS !== "web") {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  }
+}
 
 export function LoginScreen() {
   const { login } = useAuth();
@@ -28,6 +32,27 @@ export function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+
+  // Nudge the user if the backend is unreachable on the default URL.
+  useEffect(() => {
+    const probe = async () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-member-access
+        const api = require("../../services/api");
+        await api.request("/", { authenticated: false });
+      } catch {
+        setError("Can't reach the server. Check that the backend is running.");
+      }
+    };
+    const t = setTimeout(probe, 1200);
+    return () => { if (t) clearTimeout(t); };
+  }, []);
+
+  const chooseDoor = (next: RoleDoor) => {
+    tap();
+    setDoor(next);
+    setError(null);
+  };
 
   const submit = async () => {
     if (!email.trim() || !password) {
@@ -44,14 +69,6 @@ export function LoginScreen() {
     }
   };
 
-  const chooseDoor = (next: RoleDoor) => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    }
-    setDoor(next);
-    setError(null);
-  };
-
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -61,15 +78,15 @@ export function LoginScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Glow accents */}
+        {/* Ambient glow accents */}
         <View style={[styles.glow, styles.glowTop]} />
         <View style={[styles.glow, styles.glowBottom]} />
 
         <View style={styles.content}>
-          {/* Brand Header */}
+          {/* ── Brand Header (glass) ── */}
           <View style={styles.brandRow}>
             <LinearGradient
-              colors={["#FF7A3D", "#E8500F"]}
+              colors={gradients.brand}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.logoBadge}
@@ -89,7 +106,7 @@ export function LoginScreen() {
             Capture voice, photo labels, and job notes on site. Transcribe and sync in real time.
           </Text>
 
-          {/* Login Card */}
+          {/* ── Login Card (glass) ── */}
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <Text style={styles.formTitle}>
@@ -102,14 +119,14 @@ export function LoginScreen() {
               </Text>
             </View>
 
-            {/* Role doors: two ways in */}
+            {/* Role doors */}
             <View style={styles.doorsRow}>
               <Pressable
                 onPress={() => chooseDoor("technician")}
                 style={({ pressed }) => [
                   styles.door,
                   door === "technician" && styles.doorActive,
-                  pressed && styles.pillPressed
+                  pressed && styles.pressed
                 ]}
               >
                 <View style={[styles.doorIconWrap, door === "technician" && styles.doorIconWrapActive]}>
@@ -132,7 +149,7 @@ export function LoginScreen() {
                 style={({ pressed }) => [
                   styles.door,
                   door === "operator" && styles.doorActive,
-                  pressed && styles.pillPressed
+                  pressed && styles.pressed
                 ]}
               >
                 <View style={[styles.doorIconWrap, door === "operator" && styles.doorIconWrapActive]}>
@@ -155,10 +172,7 @@ export function LoginScreen() {
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>EMAIL ADDRESS</Text>
               <View
-                style={[
-                  styles.inputWrap,
-                  emailFocused && styles.inputWrapFocused
-                ]}
+                style={[styles.inputWrap, emailFocused && styles.inputWrapFocused]}
               >
                 <Ionicons
                   name="mail-outline"
@@ -184,10 +198,7 @@ export function LoginScreen() {
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>PASSWORD</Text>
               <View
-                style={[
-                  styles.inputWrap,
-                  passwordFocused && styles.inputWrapFocused
-                ]}
+                style={[styles.inputWrap, passwordFocused && styles.inputWrapFocused]}
               >
                 <Ionicons
                   name="lock-closed-outline"
@@ -232,6 +243,7 @@ export function LoginScreen() {
             <Text style={styles.footer}>Ready for offline capture & live sync</Text>
           </View>
         </View>
+
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -245,8 +257,10 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     justifyContent: "center",
-    paddingVertical: 32
+    paddingVertical: spacing.xxxl
   },
+
+  // Ambient glows
   glow: {
     position: "absolute",
     alignSelf: "center",
@@ -254,33 +268,33 @@ const styles = StyleSheet.create({
     aspectRatio: 1.8,
     backgroundColor: colors.orange,
     opacity: 0.14,
-    borderRadius: 999
+    borderRadius: radius.pill
   },
-  glowTop: {
-    top: -60
-  },
-  glowBottom: {
-    bottom: -40,
-    opacity: 0.08
-  },
+  glowTop: { top: -60 },
+  glowBottom: { bottom: -40, opacity: 0.08 },
+
+  // Content container
   content: {
-    paddingHorizontal: 24,
-    maxWidth: 480,
+    paddingHorizontal: spacing.xl,
+    maxWidth: 440,
     width: "100%",
     alignSelf: "center"
   },
+
+  // Brand header
   brandRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
-    marginBottom: 12
+    gap: spacing.lg,
+    marginBottom: spacing.md
   },
   logoBadge: {
-    width: 46,
-    height: 46,
-    borderRadius: 13,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
+    ...shadows.orangeGlow
   },
   logoText: {
     color: "#FFFFFF",
@@ -301,7 +315,7 @@ const styles = StyleSheet.create({
   },
   brand: {
     color: "#FFFFFF",
-    fontSize: 34,
+    fontSize: 32,
     letterSpacing: -0.8,
     fontWeight: "900"
   },
@@ -313,46 +327,54 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     color: colors.muted,
-    fontSize: 15,
-    marginTop: 4,
-    marginBottom: 28,
-    lineHeight: 22
+    fontSize: 14,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xxl,
+    lineHeight: 21
   },
+
+  // Login card — glass
   card: {
-    backgroundColor: colors.darkSurface,
-    borderRadius: 22,
+    backgroundColor: colors.glass,
+    borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.darkBorder,
-    padding: 24,
-    gap: 14
+    borderColor: colors.glassBorder,
+    padding: spacing.xxl,
+    gap: spacing.lg,
+    ...shadows.card
   },
   cardHeader: {
-    marginBottom: 4
+    marginBottom: spacing.xs
   },
   formTitle: {
     color: colors.text,
-    fontSize: 22,
-    fontWeight: "800"
+    fontSize: 20,
+    fontWeight: "800",
+    letterSpacing: -0.2
   },
   formHelp: {
     color: colors.muted,
-    fontSize: 13,
-    marginTop: 2
+    fontSize: 12,
+    marginTop: spacing.xs,
+    lineHeight: 17
   },
+
+  // Role doors
   doorsRow: {
     flexDirection: "row",
-    gap: 10
+    gap: spacing.md
   },
   door: {
     flex: 1,
     alignItems: "center",
-    gap: 3,
+    gap: spacing.xs,
     backgroundColor: colors.black,
     borderWidth: 1.5,
-    borderColor: colors.darkBorder,
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 8
+    borderColor: colors.glassBorder,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.sm,
+    ...shadows.card
   },
   doorActive: {
     borderColor: colors.orange,
@@ -365,14 +387,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.darkElevated,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 3
+    marginBottom: spacing.xs
   },
   doorIconWrapActive: {
     backgroundColor: colors.orange
   },
   doorTitle: {
     color: colors.textSecondary,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "800"
   },
   doorTitleActive: {
@@ -387,31 +409,32 @@ const styles = StyleSheet.create({
   doorSubActive: {
     color: colors.textSecondary
   },
-  pillPressed: {
-    opacity: 0.75
-  },
+  pressed: { opacity: 0.75 },
+
+  // Inputs
   fieldGroup: {
-    gap: 6
+    gap: spacing.sm
   },
   label: {
     color: colors.textSecondary,
     fontWeight: "800",
-    fontSize: 11,
-    letterSpacing: 0.5
+    fontSize: 10,
+    letterSpacing: 0.6
   },
   inputWrap: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1.5,
-    borderColor: colors.darkBorder,
-    borderRadius: 12,
+    borderColor: colors.glassBorder,
+    borderRadius: radius.md,
     backgroundColor: colors.black,
-    paddingHorizontal: 12,
-    gap: 8
+    paddingHorizontal: spacing.lg,
+    gap: spacing.sm
   },
   inputWrapFocused: {
     borderColor: colors.orange,
-    backgroundColor: colors.darkSurface
+    backgroundColor: colors.glass,
+    ...shadows.softGlow
   },
   inputIcon: {
     width: 18,
@@ -419,35 +442,39 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: spacing.md,
     fontSize: 15,
-    color: colors.text
+    color: colors.text,
+    fontWeight: "500"
   },
   errorContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: spacing.sm,
     backgroundColor: colors.dangerLight,
     borderWidth: 1,
     borderColor: colors.dangerBorder,
-    padding: 10,
-    borderRadius: 10
+    padding: spacing.md,
+    borderRadius: radius.md
   },
   error: {
     color: colors.danger,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "600",
-    flex: 1
+    flex: 1,
+    lineHeight: 16
   },
   submitBtn: {
-    marginTop: 6
+    marginTop: spacing.sm
   },
+
+  // Footer
   footerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    marginTop: 24
+    gap: spacing.sm,
+    marginTop: spacing.xxl
   },
   liveIndicator: {
     width: 6,
@@ -457,7 +484,8 @@ const styles = StyleSheet.create({
   },
   footer: {
     color: colors.subtle,
-    fontSize: 12,
-    fontWeight: "600"
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.3
   }
 });

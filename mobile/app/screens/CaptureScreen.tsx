@@ -8,7 +8,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Platform } from "react-native";
-import { colors, gradients } from "../../constants/theme";
+import { colors, gradients, shadows, radius, spacing } from "../../constants/theme";
 import { uploadCapture, type LocalCaptureFile } from "../../services/capture";
 import { startCaptureSession, type CaptureSession } from "../../services/templates";
 import { useAuth } from "../../hooks/useAuth";
@@ -443,20 +443,22 @@ const styles = StyleSheet.create({
     backgroundColor: colors.black
   },
   jobCard: {
-    padding: 18,
-    borderRadius: 18,
+    padding: spacing.xl,
+    borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.darkBorder,
-    gap: 6
+    borderColor: colors.glassBorder,
+    gap: spacing.sm,
+    ...shadows.card
   },
   jobBadge: {
     alignSelf: "flex-start",
     backgroundColor: colors.orangeLight,
     borderWidth: 1,
     borderColor: colors.orangeBorder,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 1,
+    borderRadius: radius.sm,
+    ...shadows.softGlow
   },
   jobBadgeText: {
     color: colors.orangeBright,
@@ -468,7 +470,8 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 22,
     fontWeight: "900",
-    letterSpacing: -0.4
+    letterSpacing: -0.4,
+    lineHeight: 26
   },
   jobAddressWrap: {
     flexDirection: "row",
@@ -501,12 +504,13 @@ const styles = StyleSheet.create({
   textFillBanner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    padding: 14,
-    borderRadius: 16,
-    backgroundColor: colors.orangeLight,
+    gap: spacing.md,
+    padding: spacing.lg,
+    borderRadius: radius.lg,
+    backgroundColor: colors.glass,
     borderWidth: 1,
-    borderColor: colors.orangeBorder
+    borderColor: colors.orangeBorder,
+    ...shadows.softGlow
   },
   textFillIconBox: {
     width: 38,
@@ -531,12 +535,13 @@ const styles = StyleSheet.create({
     lineHeight: 17
   },
   section: {
-    backgroundColor: colors.darkSurface,
+    backgroundColor: colors.glass,
     borderWidth: 1,
-    borderColor: colors.darkBorder,
-    borderRadius: 18,
-    padding: 18,
-    gap: 14
+    borderColor: colors.glassBorder,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    gap: spacing.lg,
+    ...shadows.card
   },
   sectionHeaderRow: {
     flexDirection: "row",
@@ -544,14 +549,15 @@ const styles = StyleSheet.create({
     alignItems: "flex-start"
   },
   sectionIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 11,
     backgroundColor: colors.orangeLight,
     borderWidth: 1,
     borderColor: colors.orangeBorder,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
+    ...shadows.softGlow
   },
   sectionTitleBlock: {
     flex: 1,
@@ -615,11 +621,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: colors.darkElevated,
-    padding: 12,
-    borderRadius: 12,
+    backgroundColor: colors.glass,
+    padding: spacing.lg,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.darkBorder
+    borderColor: colors.glassBorder,
+    ...shadows.softGlow
   },
   audioMeta: {
     flexDirection: "row",
@@ -668,12 +675,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: spacing.sm,
     borderWidth: 1.5,
-    borderColor: colors.darkBorder,
-    borderRadius: 12,
-    paddingVertical: 12,
-    backgroundColor: colors.darkElevated
+    borderColor: colors.glassBorder,
+    borderRadius: radius.md,
+    paddingVertical: spacing.xl,
+    backgroundColor: colors.glass,
+    ...shadows.card
   },
   actionPressed: {
     backgroundColor: colors.orangeLight,
@@ -693,15 +701,17 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     position: "relative",
-    borderRadius: 12,
-    overflow: "visible"
+    borderRadius: radius.md,
+    overflow: "visible",
+    borderWidth: 1,
+    borderColor: colors.glassBorder,
+    backgroundColor: colors.glass,
+    ...shadows.softGlow
   },
   image: {
     width: "100%",
     height: "100%",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.darkBorder
+    borderRadius: radius.md
   },
   remove: {
     position: "absolute",
@@ -797,7 +807,8 @@ const styles = StyleSheet.create({
     borderRadius: 36,
     padding: 5,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
+    ...shadows.orangeGlow
   },
   shutterInner: {
     width: 52,

@@ -31,7 +31,7 @@ Set `EXPO_PUBLIC_API_URL` in `.env` (no trailing slash):
 | iOS simulator | `http://127.0.0.1:8000` |
 | Android/iOS phone on the same Wi-Fi | `http://YOUR_COMPUTER_LAN_IP:8000` |
 
-For a physical phone, start Uvicorn so it listens on the local network: `uvicorn app.main:app --host 0.0.0.0 --port 8000`. Permit port 8000 through the computer firewall if prompted. `localhost` on a phone refers to the phone itself, not this computer.
+For a physical phone, start Uvicorn so it listens on the local network: `uvicorn app.main:app --host 0.0.0.0 --port 8000`. Permit port 8000 through the computer firewall if prompted. `localhost` on a phone refers to the phone itself, not this computer. The QR code Expo prints in the terminal is what opens the app on the phone — scan it with the Expo Go app (Android) or the Camera app (iOS).
 
 On Android and iOS, the JWT is encrypted with Expo SecureStore. Secure storage is unavailable in a browser, so Expo Web keeps the token in `sessionStorage` for that browser session only.
 

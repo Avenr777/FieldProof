@@ -19,7 +19,7 @@ import {
   getTemplateFields,
   type TemplateField
 } from "../../services/templates";
-import { colors } from "../../constants/theme";
+import { colors, shadows, radius, spacing } from "../../constants/theme";
 import type { RootStackParamList } from "../navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "FillTemplate">;
@@ -305,24 +305,26 @@ const styles = StyleSheet.create({
     fontSize: 14
   },
   templateTitle: {
-    color: "#FFFFFF",
+    color: colors.text,
     fontSize: 22,
-    fontWeight: "800",
-    marginBottom: 4
+    fontWeight: "900",
+    letterSpacing: -0.3,
+    marginBottom: spacing.xs
   },
   templateMeta: {
     color: colors.orangeBright,
     fontSize: 13,
-    fontWeight: "600",
-    marginBottom: 16
+    fontWeight: "700",
+    marginBottom: spacing.lg
   },
   sectionCard: {
-    backgroundColor: colors.darkSurface,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 16,
+    backgroundColor: colors.glass,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
     borderWidth: 1,
-    borderColor: "#28282C"
+    borderColor: colors.glassBorder,
+    ...shadows.card
   },
   jobPickerScroll: {
     marginTop: 8,
@@ -368,11 +370,12 @@ const styles = StyleSheet.create({
     marginBottom: 20
   },
   inputCard: {
-    backgroundColor: colors.darkSurface,
-    borderRadius: 14,
-    padding: 14,
+    backgroundColor: colors.glass,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
     borderWidth: 1,
-    borderColor: "#28282C"
+    borderColor: colors.glassBorder,
+    ...shadows.card
   },
   inputHeader: {
     flexDirection: "row",
@@ -381,9 +384,9 @@ const styles = StyleSheet.create({
     marginBottom: 8
   },
   fieldLabel: {
-    color: "#DDD",
+    color: colors.text,
     fontSize: 13,
-    fontWeight: "600"
+    fontWeight: "700"
   },
   voiceBtn: {
     flexDirection: "row",
@@ -400,14 +403,15 @@ const styles = StyleSheet.create({
     fontWeight: "700"
   },
   input: {
-    backgroundColor: "#1A1A1E",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: "#FFF",
+    backgroundColor: colors.darkElevated,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    color: colors.text,
     fontSize: 14,
+    fontWeight: "500",
     borderWidth: 1,
-    borderColor: "#333"
+    borderColor: colors.glassBorder
   },
   multilineInput: {
     minHeight: 70,
@@ -417,11 +421,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: colors.darkSurface,
-    borderRadius: 14,
-    padding: 14,
+    backgroundColor: colors.glass,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
     borderWidth: 1,
-    borderColor: "#28282C"
+    borderColor: colors.glassBorder,
+    ...shadows.card
   },
   checkboxLabelContainer: {
     flex: 1
@@ -433,12 +438,13 @@ const styles = StyleSheet.create({
   },
   primaryBtn: {
     backgroundColor: colors.orange,
-    borderRadius: 25,
-    paddingVertical: 14,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.xl,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 8
+    marginTop: spacing.md,
+    ...shadows.orangeGlow
   },
   primaryBtnText: {
     color: "#FFF",
