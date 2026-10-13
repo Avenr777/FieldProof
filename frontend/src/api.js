@@ -367,6 +367,17 @@ export async function fillTemplate(templateId, jobId, values) {
 // ─── Documents ───────────────────────────────────────────────────────────────
 
 /**
+ * Open one technician capture-session submission for review.
+ * Returns the session's job/technician/template metadata, every capture
+ * with its AI evidence (transcript, vision labels, OCR), unresolved
+ * compliance flags, existing documents, and an auto-suggested
+ * {field_id: {value, source, confidence}} map for the template's fields.
+ */
+export async function getReviewSession(jobId) {
+  return apiFetch(`/review/capture-session/${jobId}`);
+}
+
+/**
  * List all generated documents for the current business.
  * Returns DocumentOut[]: { id, job_id, name, extracted_fields, overall_confidence, status, created_at }
  */
