@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { createAudioPlayer, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder, type AudioPlayer } from "expo-audio";
-import { CameraView, useCameraPermissions } from "expo-camera";
+import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
-import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Platform } from "react-native";
-import { colors, gradients } from "../../constants/theme";
+import { colors, gradients, shadows } from "../../constants/theme";
 import { uploadCapture, type LocalCaptureFile } from "../../services/capture";
 import { startCaptureSession, type CaptureSession } from "../../services/templates";
 import { useAuth } from "../../hooks/useAuth";
@@ -24,6 +24,41 @@ function tap() {
   if (Platform.OS !== "web") {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
   }
+}
+
+/** Animated recording pulse dot. */
+function PulseDot({ color }: { color: string }) {
+  const scale = useRef(new Animated.Value(0.85)).current;
+  const opacity = useRef(new Animated.Value(0.6)).current;
+
+  useEffect(() => {
+    const seq = Animated.sequence([
+      Animated.parallel([
+        Animated.timing(scale, { toValue: 1.25, duration: 700, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.9, duration: 700, useNativeDriver: true }),
+      ]),
+      Animated.parallel([
+        Animated.timing(scale, { toValue: 0.85, duration: 700, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.6, duration: 700, useNativeDriver: true }),
+      ]),
+    ]);
+    const anim = Animated.loop(seq);
+    anim.start();
+    return () => anim.stop();
+  }, []);
+
+  return (
+    <Animated.View
+      style={{
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        backgroundColor: color,
+        transform: [{ scale }],
+        opacity
+      }}
+    />
+  );
 }
 
 export function CaptureScreen({ route, navigation }: Props) {
@@ -45,6 +80,9 @@ export function CaptureScreen({ route, navigation }: Props) {
   const secondsRef = useRef(0);
   const stoppingRef = useRef(false);
   const uploadRef = useRef(false);
+  const waveAnims: Record<number, Animated.Value> = {};
+
+  const WAVEFORM_BARS = [6, 14, 10, 22, 12, 26, 18, 10, 20, 8, 18, 14, 7, 24, 12, 16] as const;
 
   // Open the capture session on mount: the backend binds it to the signed-in
   // technician and the assigned template, so every file uploaded from this
@@ -240,26 +278,38 @@ export function CaptureScreen({ route, navigation }: Props) {
             style={styles.recordingBox}
           >
             <View style={styles.recordingTop}>
-              <View style={styles.recordingDot} />
+              <PulseDot color={colors.orangeBright} />
               <Text style={styles.recordingTimer}>
                 Recording {formatDuration(seconds)}
               </Text>
+              <View style={styles.recordingSpacer} />
+              <Pressable onPress={stopRecording} style={({ pressed }) => [styles.quickStopBtn, pressed && { opacity: 0.7 }]}>
+                <Ionicons name="close-outline" size={16} color={colors.danger} />
+              </Pressable>
             </View>
 
-            {/* Visualizer Waveform */}
+            {/* Visualizer Waveform — animated height per bar */}
             <View style={styles.waveformContainer}>
-              {[8, 18, 10, 26, 14, 30, 20, 12, 24, 10, 22, 16, 9, 28, 14, 18].map((h, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.waveBar,
-                    {
-                      height: Math.min(36, Math.max(6, (h * ((seconds % 3) + 1)) / 1.8)),
-                      backgroundColor: i % 2 === 0 ? colors.orange : colors.amber
-                    }
-                  ]}
-                />
-              ))}
+              {WAVEFORM_BARS.map((baseH, i) => {
+                const barAnim = waveAnims[i] ?? (waveAnims[i] = useRef(new Animated.Value(baseH)).current);
+                return (
+                  <Animated.View
+                    key={i}
+                    style={[
+                      styles.waveBar,
+                      {
+                        height: Math.min(38, Math.max(8, baseH * ((seconds % 3) + 1) / 1.6) / 10 * 10),
+                        backgroundColor: i % 2 === 0 ? colors.orange : colors.amber
+                      }
+                    ]}
+                  />
+                );
+              })}
+            </View>
+
+            <View style={styles.recordingHint}>
+              <Ionicons name="information-circle-outline" size={14} color={colors.muted} />
+              <Text style={styles.recordingHintText}>Voice note saves automatically when you stop</Text>
             </View>
 
             <PrimaryButton
@@ -345,18 +395,29 @@ export function CaptureScreen({ route, navigation }: Props) {
         </View>
 
         {photos.length > 0 && (
-          <View style={styles.grid}>
-            {photos.map((photo, index) => (
-              <View key={`${photo.uri}-${index}`} style={styles.thumbnail}>
-                <Image source={{ uri: photo.uri }} style={styles.image} />
-                <Pressable
-                  style={styles.remove}
-                  onPress={() => setPhotos((items) => items.filter((_, itemIndex) => itemIndex !== index))}
-                >
-                  <Ionicons name="close" size={14} color="#FFFFFF" />
-                </Pressable>
-              </View>
-            ))}
+          <View style={styles.photoSection}>
+            <View style={styles.photoSectionHeader}>
+              <Text style={styles.photoCount}>{photos.length} photo{photos.length !== 1 ? "s" : ""} selected</Text>
+              <Pressable onPress={() => setPhotos([])} style={({ pressed }) => [styles.clearPhotosBtn, pressed && { opacity: 0.7 }]}>
+                <Text style={styles.clearPhotosText}>Clear all</Text>
+              </Pressable>
+            </View>
+            <View style={styles.grid}>
+              {photos.map((photo, index) => (
+                <View key={`${photo.uri}-${index}`} style={styles.thumbnail}>
+                  <Image source={{ uri: photo.uri }} style={styles.image} />
+                  <View style={styles.photoIndexBadge}>
+                    <Text style={styles.photoIndexText}>{index + 1}</Text>
+                  </View>
+                  <Pressable
+                    style={styles.remove}
+                    onPress={() => setPhotos((items) => items.filter((_, itemIndex) => itemIndex !== index))}
+                  >
+                    <Ionicons name="close" size={13} color="#FFFFFF" />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
           </View>
         )}
       </View>
@@ -421,11 +482,10 @@ function CameraModal({ visible, onClose, onPhoto }: { visible: boolean; onClose:
       ) : (
         <View style={styles.cameraScreen}>
           <CameraView ref={ref} style={styles.camera} facing="back" />
-          <View style={styles.cameraControls}>
-            <Pressable onPress={onClose}>
+          <View style={styles.cameraControls}>              <Pressable onPress={onClose}>
               <Text style={styles.cameraText}>Cancel</Text>
             </Pressable>
-            <Pressable onPress={takePhoto} style={styles.shutter}>
+            <Pressable onPress={takePhoto} style={styles.shutterBtn}>
               <LinearGradient colors={gradients.brand} style={styles.shutterInner} />
             </Pressable>
             <View style={{ width: 54 }} />
@@ -578,14 +638,11 @@ const styles = StyleSheet.create({
   recordingTop: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8
+    gap: 8,
+    width: "100%",
+    justifyContent: "space-between"
   },
-  recordingDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.orange
-  },
+  recordingSpacer: { flex: 1 },
   recordingTimer: {
     color: colors.text,
     fontSize: 15,
@@ -597,13 +654,35 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 4,
-    height: 42,
+    height: 44,
     width: "100%",
     paddingHorizontal: 12
   },
   waveBar: {
     width: 4,
     borderRadius: 2
+  },
+  recordingHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    justifyContent: "center",
+    marginBottom: 2
+  },
+  recordingHintText: {
+    color: colors.subtle,
+    fontSize: 11,
+    fontWeight: "500"
+  },
+  quickStopBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.dangerLight,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.dangerBorder
   },
   stopBtn: {
     width: "100%",
@@ -684,6 +763,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700"
   },
+  photoSection: {
+    gap: 10
+  },
+  photoSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 2,
+    marginBottom: 2
+  },
+  photoCount: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "700"
+  },
+  clearPhotosBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: colors.dangerLight,
+    borderWidth: 1,
+    borderColor: colors.dangerBorder
+  },
+  clearPhotosText: {
+    color: colors.danger,
+    fontSize: 11,
+    fontWeight: "700"
+  },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -693,15 +800,32 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     position: "relative",
-    borderRadius: 12,
-    overflow: "visible"
+    borderRadius: 14,
+    overflow: "visible",
+    borderWidth: 1,
+    borderColor: colors.darkBorder,
+    backgroundColor: colors.darkSurface
   },
   image: {
     width: "100%",
     height: "100%",
-    borderRadius: 12,
+    borderRadius: 14
+  },
+  photoIndexBadge: {
+    position: "absolute",
+    bottom: 4,
+    left: 4,
+    backgroundColor: colors.darkElevated,
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
     borderWidth: 1,
     borderColor: colors.darkBorder
+  },
+  photoIndexText: {
+    color: colors.textSecondary,
+    fontSize: 10,
+    fontWeight: "800"
   },
   remove: {
     position: "absolute",
@@ -737,7 +861,21 @@ const styles = StyleSheet.create({
     fontWeight: "700"
   },
   uploadBtn: {
-    marginBottom: 20
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.orange,
+    ...shadows.orangeGlow
+  },
+  shutterBtn: {
+    height: 72,
+    width: 72,
+    borderWidth: 4,
+    borderColor: colors.orange,
+    borderRadius: 36,
+    padding: 5,
+    justifyContent: "center",
+    alignItems: "center",
+    ...shadows.orangeGlow
   },
   center: {
     flex: 1,
@@ -788,16 +926,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "700",
     fontSize: 15
-  },
-  shutter: {
-    height: 72,
-    width: 72,
-    borderWidth: 4,
-    borderColor: colors.orange,
-    borderRadius: 36,
-    padding: 5,
-    justifyContent: "center",
-    alignItems: "center"
   },
   shutterInner: {
     width: 52,

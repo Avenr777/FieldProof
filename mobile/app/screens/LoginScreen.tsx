@@ -1,5 +1,8 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -9,17 +12,29 @@ import {
   TextInput,
   View
 } from "react-native";
+import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { useAuth } from "../../hooks/useAuth";
 import { isOperator } from "../navigation/RootNavigator";
-import { colors } from "../../constants/theme";
+import { colors, gradients, shadows, timing, radius } from "../../constants/theme";
+import { parseQrPayload } from "../../utils/qr";
+import { writeScannedUrl } from "../../constants/config";
+import type { RootStackParamList } from "../navigation/types";
 
+type Props = { navigation: NativeStackNavigationProp<RootStackParamList, "Login"> };
 type RoleDoor = "technician" | "operator";
 
+function tap() {
+  if (Platform.OS !== "web") {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  }
+}
+
 export function LoginScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, "Login">>();
   const { login } = useAuth();
   const [door, setDoor] = useState<RoleDoor>("technician");
   const [email, setEmail] = useState("");
@@ -28,6 +43,36 @@ export function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [scanMode, setScanMode] = useState<"server" | "login" | null>(null);
+  const [scanResult, setScanResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-prompt: if the backend is unreachable on the default URL, nudge the
+  // user toward the Server Config screen rather than leaving them on a dead login.
+  useEffect(() => {
+    const probe = async () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-member-access
+        const api = require("../../services/api");
+        await api.request("/", { authenticated: false });
+      } catch {
+        // Server not reachable — show a gentle hint but don't block login.
+        setError("Can't reach the server. Tap 'Configure Server' below to set the right URL, or scan a QR.");
+      }
+    };
+    const t = setTimeout(probe, 1200);
+    return () => { if (t) clearTimeout(t); };
+  }, []);
+
+  const chooseDoor = (next: RoleDoor) => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    }
+    setDoor(next);
+    setError(null);
+  };
 
   const submit = async () => {
     if (!email.trim() || !password) {
@@ -44,13 +89,38 @@ export function LoginScreen() {
     }
   };
 
-  const chooseDoor = (next: RoleDoor) => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  const openScanner = async (mode: "server" | "login") => {
+    const perm = await requestCameraPermission();
+    if (!perm.granted) {
+      return Alert.alert("Camera required", "Allow camera access to scan QR codes.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Open Settings", onPress: () => { perm.canAskAgain && requestCameraPermission(); } },
+      ]);
     }
-    setDoor(next);
-    setError(null);
+    setScanMode(mode);
+    setScanResult(null);
+    setCameraOpen(true);
   };
+
+  const handleScan = useCallback((raw: string) => {
+    const payload = parseQrPayload(raw);
+    if (payload.kind === "api-url") {
+      // Persist the scanned URL and verify it with a quick ping.
+      writeScannedUrl(payload.url);
+      setScanResult({ ok: true, msg: "Server URL saved — returning to login…" });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        setCameraOpen(false);
+        setScanMode(null);
+        setScanResult(null);
+      }, 1200);
+    } else if (payload.kind === "login") {
+      setScanResult({ ok: false, msg: "Login QR detected — set the server URL first, then scan again." });
+    } else {
+      setScanResult({ ok: false, msg: `Unrecognized code.` });
+    }
+  }, []);
 
   return (
     <KeyboardAvoidingView
@@ -100,6 +170,24 @@ export function LoginScreen() {
                   ? "Capture against templates assigned by your operator"
                   : "Monitor team uploads, documents, and compliance"}
               </Text>
+            </View>
+
+            {/* Quick actions row: scan QR or configure server */}
+            <View style={styles.quickActions}>
+              <Pressable
+                onPress={() => openScanner("server")}
+                style={({ pressed }) => [styles.quickAction, pressed && { opacity: 0.7 }]}
+              >
+                <Ionicons name="scan" size={15} color={colors.orangeBright} />
+                <Text style={styles.quickActionText}>Scan server QR</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => navigation.navigate("ServerConfig")}
+                style={({ pressed }) => [styles.quickAction, pressed && { opacity: 0.7 }]}
+              >
+                <Ionicons name="settings" size={15} color={colors.orangeBright} />
+                <Text style={styles.quickActionText}>Configure server</Text>
+              </Pressable>
             </View>
 
             {/* Role doors: two ways in */}
@@ -232,6 +320,75 @@ export function LoginScreen() {
             <Text style={styles.footer}>Ready for offline capture & live sync</Text>
           </View>
         </View>
+
+        {/* QR Scanner Modal inline */}
+        {cameraOpen && cameraPermission?.granted && (
+          <View style={styles.scannerSheet}>
+            <View style={styles.scannerHeader}>
+              <Pressable onPress={() => { setCameraOpen(false); setScanMode(null); setScanResult(null); }} style={({ pressed }) => [styles.scannerClose, pressed && { opacity: 0.7 }]}>
+                <Ionicons name="close-outline" size={20} color={colors.text} />
+                <Text style={styles.scannerCloseText}>Cancel</Text>
+              </Pressable>
+              <Text style={styles.scannerTitle}>
+                {scanMode === "server" ? "Scan the server QR" : "Scan a login QR"}
+              </Text>
+              <View style={{ width: 20 }} />
+            </View>
+
+            <CameraView
+              style={styles.camera}
+              facing="back"
+              onBarcodeScanned={scanMode ? ((e: BarcodeScanningResult | null) => {
+                if (e?.data) handleScan(e.data);
+              }) : undefined}
+              barcodeScannerSettings={{
+                barcodeTypes: ["qr"],
+              }}
+            />
+
+            {/* Scan frame */}
+            <View style={styles.scanOverlay}>
+              <View style={styles.scanFrame}>
+                <View style={[styles.corner, styles.cornerTL]} />
+                <View style={[styles.corner, styles.cornerTR]} />
+                <View style={[styles.corner, styles.cornerBL]} />
+                <View style={[styles.corner, styles.cornerBR]} />
+              </View>
+              <Text style={styles.scanInstruction}>
+                {scanMode === "server"
+                  ? "Point at the server QR code"
+                  : "Point at the login QR code"}
+              </Text>
+            </View>
+
+            {scanResult && (
+              <View style={styles.scanResultCard}>
+                <Ionicons
+                  name={scanResult.ok ? "checkmark-circle" : "alert-circle"}
+                  size={18}
+                  color={scanResult.ok ? colors.success : colors.danger}
+                />
+                <Text style={styles.scanResultText}>{scanResult.msg}</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Camera permission fallback */}
+        {cameraOpen && !cameraPermission?.granted && (
+          <View style={styles.permissionCard}>
+            <View style={styles.permissionIcon}>
+              <Ionicons name="camera-outline" size={36} color={colors.orangeBright} />
+            </View>
+            <Text style={styles.permissionText}>Camera access is needed to scan QR codes.</Text>
+            <Pressable
+              onPress={() => requestCameraPermission()}
+              style={({ pressed }) => [styles.permissionBtn, pressed && { opacity: 0.8 }]}
+            >
+              <Text style={styles.permissionBtnText}>Allow Camera</Text>
+            </Pressable>
+          </View>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -256,13 +413,8 @@ const styles = StyleSheet.create({
     opacity: 0.14,
     borderRadius: 999
   },
-  glowTop: {
-    top: -60
-  },
-  glowBottom: {
-    bottom: -40,
-    opacity: 0.08
-  },
+  glowTop: { top: -60 },
+  glowBottom: { bottom: -40, opacity: 0.08 },
   content: {
     paddingHorizontal: 24,
     maxWidth: 480,
@@ -272,15 +424,16 @@ const styles = StyleSheet.create({
   brandRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
-    marginBottom: 12
+    gap: spacing.lg,
+    marginBottom: spacing.md
   },
   logoBadge: {
-    width: 46,
-    height: 46,
-    borderRadius: 13,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
+    ...shadows.orangeGlow
   },
   logoText: {
     color: "#FFFFFF",
@@ -315,16 +468,17 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 15,
     marginTop: 4,
-    marginBottom: 28,
+    marginBottom: 24,
     lineHeight: 22
   },
   card: {
-    backgroundColor: colors.darkSurface,
-    borderRadius: 22,
+    backgroundColor: colors.glass,
+    borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.darkBorder,
-    padding: 24,
-    gap: 14
+    borderColor: colors.glassBorder,
+    padding: spacing.xxl,
+    gap: spacing.lg,
+    ...shadows.card
   },
   cardHeader: {
     marginBottom: 4
@@ -339,20 +493,43 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2
   },
+  quickActions: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 6
+  },
+  quickAction: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 9,
+    borderRadius: 10,
+    backgroundColor: colors.darkElevated,
+    borderWidth: 1,
+    borderColor: colors.darkBorder
+  },
+  quickActionText: {
+    color: colors.orangeBright,
+    fontSize: 12,
+    fontWeight: "700"
+  },
   doorsRow: {
     flexDirection: "row",
-    gap: 10
+    gap: spacing.md
   },
   door: {
     flex: 1,
     alignItems: "center",
-    gap: 3,
+    gap: spacing.xs,
     backgroundColor: colors.black,
     borderWidth: 1.5,
     borderColor: colors.darkBorder,
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 8
+    borderRadius: radius.lg,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.sm,
+    ...shadows.card
   },
   doorActive: {
     borderColor: colors.orange,
@@ -403,15 +580,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1.5,
-    borderColor: colors.darkBorder,
-    borderRadius: 12,
+    borderColor: colors.glassBorder,
+    borderRadius: radius.md,
     backgroundColor: colors.black,
-    paddingHorizontal: 12,
-    gap: 8
+    paddingHorizontal: spacing.lg,
+    gap: spacing.sm
   },
   inputWrapFocused: {
     borderColor: colors.orange,
-    backgroundColor: colors.darkSurface
+    backgroundColor: colors.glass,
+    ...shadows.softGlow
   },
   inputIcon: {
     width: 18,
@@ -459,5 +637,136 @@ const styles = StyleSheet.create({
     color: colors.subtle,
     fontSize: 12,
     fontWeight: "600"
+  },
+
+  /* Scanner sheet */
+  scannerSheet: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 380,
+    backgroundColor: colors.black,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: "hidden"
+  },
+  scannerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: colors.darkSurface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.darkBorder
+  },
+  scannerClose: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6
+  },
+  scannerCloseText: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "700"
+  },
+  scannerTitle: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "800"
+  },
+  camera: {
+    flex: 1
+  },
+  scanOverlay: {
+    ...StyleSheet.absoluteFill,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.30)"
+  },
+  scanFrame: {
+    width: 220,
+    height: 220,
+    position: "relative"
+  },
+  corner: {
+    position: "absolute",
+    width: 26,
+    height: 26,
+    borderColor: colors.orangeBright,
+    borderWidth: 3
+  },
+  cornerTL: { top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 6 },
+  cornerTR: { top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 6 },
+  cornerBL: { bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 6 },
+  cornerBR: { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 6 },
+  scanInstruction: {
+    position: "absolute",
+    bottom: 24,
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "center",
+    backgroundColor: "rgba(0,0,0,0.65)",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 999
+  },
+  scanResultCard: {
+    position: "absolute",
+    bottom: 16,
+    left: 16,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: colors.darkElevated,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.darkBorder
+  },
+  scanResultText: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "600",
+    flex: 1
+  },
+
+  /* Permission fallback */
+  permissionCard: {
+    alignItems: "center",
+    padding: 32,
+    gap: 16,
+    backgroundColor: colors.black
+  },
+  permissionIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.orangeLight,
+    borderWidth: 1,
+    borderColor: colors.orangeBorder,
+    justifyContent: "center",
+    alignItems: "center"
+  },
+  permissionText: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "600",
+    textAlign: "center",
+    lineHeight: 22
+  },
+  permissionBtn: {
+    backgroundColor: colors.orange,
+    paddingHorizontal: 20,
+    paddingVertical: 9,
+    borderRadius: 10
+  },
+  permissionBtnText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700"
   }
 });

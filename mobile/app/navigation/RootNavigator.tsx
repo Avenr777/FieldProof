@@ -8,8 +8,12 @@ import { JobDetailsScreen } from "../screens/JobDetailsScreen";
 import { MyTemplatesScreen } from "../screens/MyTemplatesScreen";
 import { OperatorHomeScreen } from "../screens/OperatorHomeScreen";
 import { LoginScreen } from "../screens/LoginScreen";
+<<<<<<< Updated upstream
 import { TemplatesScreen } from "../screens/TemplatesScreen";
 import { FillTemplateScreen } from "../screens/FillTemplateScreen";
+=======
+import { ServerConfigScreen } from "../screens/ServerConfigScreen";
+>>>>>>> Stashed changes
 import type { RootStackParamList } from "./types";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -37,7 +41,8 @@ export function RootNavigator() {
           headerStyle: { backgroundColor: colors.black },
           headerTintColor: colors.orangeBright,
           headerTitleStyle: { color: "#FFFFFF", fontWeight: "800", fontSize: 17 },
-          contentStyle: { backgroundColor: colors.black }
+          contentStyle: { backgroundColor: colors.black },
+          animation: "slide_from_right"
         }}
       >
         {user ? (
