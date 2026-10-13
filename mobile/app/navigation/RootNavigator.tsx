@@ -81,6 +81,11 @@ export function RootNavigator() {
                 component={CaptureScreen}
                 options={{ title: "Field Capture" }}
               />
+              <Stack.Screen
+                name="FillTemplate"
+                component={FillTemplateScreen}
+                options={{ title: "Fill Template" }}
+              />
             </>
           )
         ) : (

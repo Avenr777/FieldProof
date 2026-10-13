@@ -123,16 +123,16 @@ export function FillTemplateScreen({ route, navigation }: Props) {
 
           <Pressable
             style={styles.primaryBtn}
-            onPress={() => navigation.navigate("Jobs")}
+            onPress={() => navigation.goBack()}
           >
-            <Text style={styles.primaryBtnText}>Return to Jobs</Text>
+            <Text style={styles.primaryBtnText}>Return to Capture</Text>
           </Pressable>
 
           <Pressable
             style={styles.secondaryBtn}
-            onPress={() => navigation.navigate("Templates")}
+            onPress={() => navigation.goBack()}
           >
-            <Text style={styles.secondaryBtnText}>Fill Another Template</Text>
+            <Text style={styles.secondaryBtnText}>Done</Text>
           </Pressable>
         </View>
       </View>
@@ -196,7 +196,7 @@ export function FillTemplateScreen({ route, navigation }: Props) {
             );
           }
 
-          const isMultiline = fieldType === "multiline_text" || (f.kind && f.kind.includes("multiline"));
+          const isMultiline = fieldType === "multiline_text" || Boolean(f.kind?.includes("multiline"));
 
           return (
             <View key={f.field_id} style={styles.inputCard}>
@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
     marginBottom: 16
   },
   sectionCard: {
-    backgroundColor: colors.cardBg || "#141416",
+    backgroundColor: colors.darkSurface,
     borderRadius: 14,
     padding: 14,
     marginBottom: 16,
@@ -368,7 +368,7 @@ const styles = StyleSheet.create({
     marginBottom: 20
   },
   inputCard: {
-    backgroundColor: colors.cardBg || "#141416",
+    backgroundColor: colors.darkSurface,
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: colors.cardBg || "#141416",
+    backgroundColor: colors.darkSurface,
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,

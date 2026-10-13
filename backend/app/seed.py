@@ -121,15 +121,49 @@ def run(force_reset: bool = True):
 
         print("--- Creating Template Assignments ---")
         if "Electrical Inspection Certificate" in template_objs:
-            db.add(models.TemplateAssignment(template_id=template_objs["Electrical Inspection Certificate"].id, technician_id=tech_objs[0].id))
-            db.add(models.TemplateAssignment(template_id=template_objs["Electrical Inspection Certificate"].id, technician_id=tech_objs[3].id))
+            db.add(models.TemplateAssignment(
+                template_id=template_objs["Electrical Inspection Certificate"].id,
+                technician_id=tech_objs[0].id,
+                required_proof_types=["photo", "voice"],
+                min_photos=2,
+                require_voice=True,
+                technician_instructions="Please capture a clear photo of the breaker panel label and record a voice note stating voltage reading and ground test results.",
+            ))
+            db.add(models.TemplateAssignment(
+                template_id=template_objs["Electrical Inspection Certificate"].id,
+                technician_id=tech_objs[3].id,
+                required_proof_types=["photo", "form_fill"],
+                min_photos=1,
+                require_voice=False,
+                technician_instructions="Fill in the electrical safety checklist form and attach a photo of completed wiring.",
+            ))
         if "HVAC Maintenance Log" in template_objs:
-            db.add(models.TemplateAssignment(template_id=template_objs["HVAC Maintenance Log"].id, technician_id=tech_objs[1].id))
+            db.add(models.TemplateAssignment(
+                template_id=template_objs["HVAC Maintenance Log"].id,
+                technician_id=tech_objs[1].id,
+                required_proof_types=["photo", "voice"],
+                min_photos=1,
+                require_voice=True,
+                technician_instructions="Record a voice note describing filter replacement and refrigerant pressure level, plus a photo of thermostat calibration.",
+            ))
         if "Plumbing Pressure Test & Signoff" in template_objs:
-            db.add(models.TemplateAssignment(template_id=template_objs["Plumbing Pressure Test & Signoff"].id, technician_id=tech_objs[2].id))
+            db.add(models.TemplateAssignment(
+                template_id=template_objs["Plumbing Pressure Test & Signoff"].id,
+                technician_id=tech_objs[2].id,
+                required_proof_types=["photo"],
+                min_photos=1,
+                require_voice=False,
+                technician_instructions="Only send a clear photo of the completed pipe joint pressure gauge reading.",
+            ))
         if "Fire Safety & Alarm Inspection" in template_objs:
-            db.add(models.TemplateAssignment(template_id=template_objs["Fire Safety & Alarm Inspection"].id, technician_id=tech_objs[4].id))
-            db.add(models.TemplateAssignment(template_id=template_objs["Fire Safety & Alarm Inspection"].id, technician_id=tech_objs[0].id))
+            db.add(models.TemplateAssignment(
+                template_id=template_objs["Fire Safety & Alarm Inspection"].id,
+                technician_id=tech_objs[4].id,
+                required_proof_types=["photo", "voice", "form_fill"],
+                min_photos=2,
+                require_voice=True,
+                technician_instructions="Complete alarm inspection checklist, attach control panel photo, and record audio test confirmation.",
+            ))
         db.flush()
 
         print("--- Creating Active Jobs ---")

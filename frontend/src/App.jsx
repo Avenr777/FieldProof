@@ -755,6 +755,7 @@ const NAV_ITEMS = [
   { key: "jobs", label: "Jobs", icon: Briefcase },
   { key: "capture", label: "Field Capture", icon: Camera },
   { key: "templates", label: "Templates", icon: FileText },
+  { key: "assignments", label: "Assign Documents", icon: UserCheck },
   { key: "documents", label: "Documents", icon: FileCheck2 },
   { key: "technicians", label: "Technicians", icon: Users },
   { key: "compliance", label: "Compliance", icon: ShieldCheck },
@@ -1707,38 +1708,6 @@ function TemplateDetailPanel({
         {showFillForm ? "Fields detected automatically from the uploaded .docx form." : "Every blank, checkbox, and table field found in the uploaded document. Click the pencil icon to edit field labels or types."}
       </p>
 
-      {!showFillForm && (
-        <div className="mb-5 border border-stone-100 bg-stone-50/60 rounded-xl px-4 py-3.5">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 min-w-0">
-              <UserPlus className="h-4 w-4 text-orange-600 shrink-0" />
-              <p className="text-sm font-semibold text-stone-700">Assigned technician(s)</p>
-            </div>
-            <select
-              value={assignedTechIds[0] || ""}
-              disabled={savingAssign}
-              onChange={(e) => handleAssign(e.target.value)}
-              className="text-sm border border-stone-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200 max-w-56"
-            >
-              <option value="">Unassigned</option>
-              {technicians.map((t) => (
-                <option key={t.id} value={t.id}>{t.name} · {t.trade}</option>
-              ))}
-            </select>
-            {assignedTechIds.length > 0 && (
-              <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
-                Visible on {assignedTechIds.length} mobile app{assignedTechIds.length > 1 ? "s" : ""}
-              </span>
-            )}
-            {savingAssign && <Loader2 className="h-4 w-4 text-stone-400 fs-spin" />}
-          </div>
-          {assignError && <p className="text-xs text-red-700 mt-2">{assignError}</p>}
-          <p className="text-xs text-stone-400 mt-2">
-            A technician is bound to one company and sees only the templates assigned to them — their captures upload under their name.
-          </p>
-        </div>
-      )}
-
       {fieldsLoading && <Spinner label="Loading fields..." />}
 
       {fieldsError && (
@@ -1771,56 +1740,6 @@ function TemplateDetailPanel({
               canEdit={currentUser?.role !== "Technician"}
             />
           </div>
-
-          {currentUser?.role !== "Technician" && (
-            <div className="mb-6 p-4 bg-stone-50 border border-stone-200 rounded-2xl">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <p className="text-xs font-semibold text-stone-800 flex items-center gap-1.5">
-                    <Users className="h-4 w-4 text-orange-600" /> Assign Template to Technicians
-                  </p>
-                  <p className="text-[11px] text-stone-500 mt-0.5">
-                    Assigned technicians can access and fill this form directly in their mobile app.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSaveAssignment}
-                  disabled={savingAssign}
-                  className="text-xs font-semibold text-white bg-stone-900 hover:bg-stone-800 disabled:opacity-50 rounded-full px-3.5 py-1.5 flex items-center gap-1.5 transition-colors"
-                >
-                  {savingAssign ? <Loader2 className="h-3.5 w-3.5 fs-spin" /> : <Check className="h-3.5 w-3.5" />}
-                  {assignSuccess ? "Saved!" : "Save Assignments"}
-                </button>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
-                {technicians.map((t) => {
-                  const isAssigned = assignedTechIds.includes(t.id);
-                  return (
-                    <label
-                      key={t.id}
-                      className={`flex items-center gap-2 p-2 rounded-xl border text-xs font-medium cursor-pointer transition-all ${
-                        isAssigned
-                          ? "bg-orange-50 border-orange-200 text-orange-900 shadow-sm"
-                          : "bg-white border-stone-200 text-stone-600 hover:bg-stone-100"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isAssigned}
-                        onChange={() => toggleTechAssignment(t.id)}
-                        className="rounded border-stone-300 text-orange-600 focus:ring-orange-200"
-                      />
-                      <span className="truncate">{t.name}</span>
-                    </label>
-                  );
-                })}
-                {technicians.length === 0 && (
-                  <p className="text-xs text-stone-400 col-span-3">No technicians registered yet.</p>
-                )}
-              </div>
-            </div>
-          )}
 
           <button
             type="button"
@@ -2779,6 +2698,18 @@ function DocumentsView({ documents, jobs, complianceEvents = [], onDocumentsChan
               </div>
             )}
 
+            {reviewing.auto_filled && (
+              <div className="p-3 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl text-xs flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-orange-950 font-semibold">
+                  <Sparkles className="h-4 w-4 text-orange-600 shrink-0" />
+                  <span>Automated AI Auto-Filled Report (Zero Admin Typing)</span>
+                </div>
+                <span className="text-[10px] font-bold text-orange-800 bg-orange-100 px-2.5 py-0.5 rounded-full">
+                  1-Click Review
+                </span>
+              </div>
+            )}
+
             <div className="flex border-b border-stone-100 text-xs font-semibold gap-4">
               <button
                 onClick={() => setReviewTab("fields")}
@@ -2796,15 +2727,30 @@ function DocumentsView({ documents, jobs, complianceEvents = [], onDocumentsChan
 
             {reviewTab === "fields" && (
               <div className="space-y-2 max-h-72 overflow-y-auto fs-scroll pr-1">
-                {reviewing.extracted_fields.map((f, i) => (
-                  <div key={i} className="flex items-center justify-between border-b border-stone-50 last:border-0 py-2 gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm text-stone-700 truncate">{f.field}</p>
-                      {f.value && <p className="text-xs text-stone-400 truncate">{f.value}</p>}
+                {reviewing.extracted_fields.map((f, i) => {
+                  const fieldKey = (f.field || "").trim().toLowerCase();
+                  const srcMeta = reviewing.field_sources?.[fieldKey];
+                  return (
+                    <div key={i} className="flex items-center justify-between border-b border-stone-50 last:border-0 py-2.5 gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-semibold text-stone-800 truncate">{f.field}</p>
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-stone-100 text-stone-600">
+                            {srcMeta?.source || f.source || "Auto-Fused"}
+                          </span>
+                        </div>
+                        {f.value ? (
+                          <p className="text-xs text-orange-950 font-medium mt-0.5 truncate bg-stone-50 px-2 py-1 rounded border border-stone-100">
+                            {f.value}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-stone-300 italic">Blank</p>
+                        )}
+                      </div>
+                      <ConfidenceBar value={f.confidence} />
                     </div>
-                    <ConfidenceBar value={f.confidence} />
-                  </div>
-                ))}
+                  );
+                })}
                 {reviewing.extracted_fields.length === 0 && (
                   <p className="text-sm text-stone-400">No extracted fields on this document.</p>
                 )}
@@ -3561,12 +3507,1002 @@ function SettingsView({ currentUser, onUserUpdated }) {
 
 
 /* ======================================================================
+   ASSIGNMENTS VIEW (One-Time & Repeating Document Assignment)
+   ====================================================================== */
+
+function formatScheduleBadge(asn) {
+  if (asn.assignment_type === "one_time" || !asn.frequency) {
+    return {
+      label: "One-Time / As Needed",
+      icon: Zap,
+      tone: "bg-amber-50 text-amber-700 border-amber-200",
+    };
+  }
+  const freq = (asn.frequency || "").toLowerCase();
+  const details = asn.frequency_details || {};
+  let text = "Repeating Schedule";
+  if (freq === "daily") {
+    const interval = details.interval || 1;
+    text = interval === 1 ? "Daily Schedule" : `Every ${interval} Days`;
+  } else if (freq === "weekly") {
+    const days = (details.days_of_week || []).join(", ");
+    text = days ? `Weekly (${days})` : "Weekly Schedule";
+  } else if (freq === "monthly") {
+    const dom = details.day_of_month || 1;
+    text = `Monthly (Day ${dom})`;
+  } else if (freq === "custom") {
+    text = details.custom_notes || "Custom Schedule";
+  }
+  return {
+    label: text,
+    icon: CalendarDays,
+    tone: "bg-orange-50 text-orange-800 border-orange-200",
+  };
+}
+
+function CreateAssignmentModal({ templates = [], technicians = [], onClose, onSuccess }) {
+  const [selectedTplIds, setSelectedTplIds] = useState([]);
+  const [selectedTechIds, setSelectedTechIds] = useState([]);
+  const [assignmentType, setAssignmentType] = useState("one_time"); // "one_time" | "repeating"
+  const [dueDate, setDueDate] = useState("");
+  
+  // Repeating schedule options
+  const [frequency, setFrequency] = useState("weekly"); // "daily" | "weekly" | "monthly" | "custom"
+  const [interval, setInterval] = useState(1);
+  const [daysOfWeek, setDaysOfWeek] = useState(["Mon"]);
+  const [dayOfMonth, setDayOfMonth] = useState(1);
+  const [customNotes, setCustomNotes] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  
+  // Proof Requirements & Instructions
+  const [requiredProofTypes, setRequiredProofTypes] = useState(["photo", "voice"]);
+  const [minPhotos, setMinPhotos] = useState(1);
+  const [requireVoice, setRequireVoice] = useState(false);
+  const [technicianInstructions, setTechnicianInstructions] = useState("");
+
+  const [notes, setNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const toggleDayOfWeek = (day) => {
+    setDaysOfWeek((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+    );
+  };
+
+  const handleSelectAllTemplates = () => {
+    if (selectedTplIds.length === templates.length) {
+      setSelectedTplIds([]);
+    } else {
+      setSelectedTplIds(templates.map((t) => t.id));
+    }
+  };
+
+  const handleSelectAllTechs = () => {
+    if (selectedTechIds.length === technicians.length) {
+      setSelectedTechIds([]);
+    } else {
+      setSelectedTechIds(technicians.map((t) => t.id));
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (selectedTplIds.length === 0) {
+      setError("Please select at least one document template.");
+      return;
+    }
+    if (selectedTechIds.length === 0) {
+      setError("Please select at least one technician.");
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const payload = {
+        template_ids: selectedTplIds,
+        technician_ids: selectedTechIds,
+        assignment_type: assignmentType,
+        notes: notes || null,
+        required_proof_types: requiredProofTypes,
+        min_photos: Number(minPhotos) || 1,
+        require_voice: requireVoice,
+        technician_instructions: technicianInstructions || null,
+      };
+
+      if (assignmentType === "one_time") {
+        payload.due_date = dueDate ? new Date(dueDate).toISOString() : null;
+      } else {
+        payload.frequency = frequency;
+        payload.frequency_details = {
+          interval: Number(interval) || 1,
+          days_of_week: daysOfWeek,
+          day_of_month: Number(dayOfMonth) || 1,
+          custom_notes: customNotes || null,
+        };
+        payload.start_date = startDate ? new Date(startDate).toISOString() : null;
+        payload.end_date = endDate ? new Date(endDate).toISOString() : null;
+      }
+
+      await api.createAssignment(payload);
+      onSuccess();
+    } catch (err) {
+      setError(err.message || "Failed to create assignment");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 fs-root overflow-y-auto">
+      <Card className="w-full max-w-2xl p-6 space-y-5 my-8">
+        <div className="flex items-center justify-between border-b border-stone-100 pb-4">
+          <div>
+            <h2 className="fs-display text-xl font-bold text-stone-900">Assign Document to Technicians</h2>
+            <p className="text-xs text-stone-500 mt-0.5">Select document(s), technician(s), and assignment schedule.</p>
+          </div>
+          <button onClick={onClose} className="p-1 text-stone-400 hover:text-stone-600 rounded-lg">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {error && (
+          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Step 1: Select Documents */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-bold text-stone-800 uppercase tracking-wider">
+                1. Select Document / Template ({selectedTplIds.length} selected)
+              </label>
+              <button
+                type="button"
+                onClick={handleSelectAllTemplates}
+                className="text-[11px] font-semibold text-orange-600 hover:underline"
+              >
+                {selectedTplIds.length === templates.length ? "Deselect All" : "Select All"}
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto fs-scroll p-1 border border-stone-200 rounded-xl bg-stone-50/50">
+              {templates.map((tpl) => {
+                const checked = selectedTplIds.includes(tpl.id);
+                return (
+                  <label
+                    key={tpl.id}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-xs cursor-pointer transition-all ${
+                      checked
+                        ? "bg-orange-50 border-orange-200 text-orange-900 font-semibold"
+                        : "bg-white border-stone-200 text-stone-700 hover:bg-stone-100"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() =>
+                        setSelectedTplIds((prev) =>
+                          prev.includes(tpl.id) ? prev.filter((id) => id !== tpl.id) : [...prev, tpl.id]
+                        )
+                      }
+                      className="rounded border-stone-300 text-orange-600 focus:ring-orange-200"
+                    />
+                    <div className="truncate">
+                      <p className="truncate font-medium">{tpl.name}</p>
+                      <p className="text-[10px] text-stone-400 font-normal">{tpl.trade}</p>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Step 2: Select Technicians */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-bold text-stone-800 uppercase tracking-wider">
+                2. Select Technician(s) ({selectedTechIds.length} selected)
+              </label>
+              <button
+                type="button"
+                onClick={handleSelectAllTechs}
+                className="text-[11px] font-semibold text-orange-600 hover:underline"
+              >
+                {selectedTechIds.length === technicians.length ? "Deselect All" : "Select All"}
+              </button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto fs-scroll p-1 border border-stone-200 rounded-xl bg-stone-50/50">
+              {technicians.map((tech) => {
+                const checked = selectedTechIds.includes(tech.id);
+                return (
+                  <label
+                    key={tech.id}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-xs cursor-pointer transition-all ${
+                      checked
+                        ? "bg-orange-50 border-orange-200 text-orange-900 font-semibold"
+                        : "bg-white border-stone-200 text-stone-700 hover:bg-stone-100"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() =>
+                        setSelectedTechIds((prev) =>
+                          prev.includes(tech.id) ? prev.filter((id) => id !== tech.id) : [...prev, tech.id]
+                        )
+                      }
+                      className="rounded border-stone-300 text-orange-600 focus:ring-orange-200"
+                    />
+                    <div className="truncate">
+                      <p className="truncate font-medium">{tech.name}</p>
+                      <p className="text-[10px] text-stone-400 font-normal">{tech.trade}</p>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Step 3: Assignment Type (One-Time vs Repeating) */}
+          <div>
+            <label className="text-xs font-bold text-stone-800 uppercase tracking-wider block mb-2">
+              3. Assignment Type
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setAssignmentType("one_time")}
+                className={`p-4 rounded-xl border text-left transition-all ${
+                  assignmentType === "one_time"
+                    ? "bg-amber-50 border-amber-300 ring-2 ring-amber-200 text-amber-950"
+                    : "bg-white border-stone-200 hover:bg-stone-50 text-stone-700"
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Zap className={`h-4 w-4 ${assignmentType === "one_time" ? "text-amber-600" : "text-stone-400"}`} />
+                  <span className="font-bold text-sm">One-Time / As Needed</span>
+                </div>
+                <p className="text-xs text-stone-500">
+                  Assign for single completion or whenever required by technician.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAssignmentType("repeating")}
+                className={`p-4 rounded-xl border text-left transition-all ${
+                  assignmentType === "repeating"
+                    ? "bg-orange-50 border-orange-300 ring-2 ring-orange-200 text-orange-950"
+                    : "bg-white border-stone-200 hover:bg-stone-50 text-stone-700"
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <CalendarDays className={`h-4 w-4 ${assignmentType === "repeating" ? "text-orange-600" : "text-stone-400"}`} />
+                  <span className="font-bold text-sm">Repeating Schedule</span>
+                </div>
+                <p className="text-xs text-stone-500">
+                  Automatically schedule on a Daily, Weekly, Monthly, or Custom interval.
+                </p>
+              </button>
+            </div>
+          </div>
+
+          {/* Options for One-Time */}
+          {assignmentType === "one_time" && (
+            <div className="p-4 rounded-xl border border-stone-200 bg-stone-50/70 space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-stone-700 block mb-1">Due Date (Optional)</label>
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="w-full text-xs border border-stone-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Options for Repeating Schedule */}
+          {assignmentType === "repeating" && (
+            <div className="p-4 rounded-xl border border-stone-200 bg-stone-50/70 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-stone-700 block mb-1.5">Recurrence Frequency</label>
+                <div className="flex gap-2">
+                  {[
+                    { id: "daily", label: "Daily" },
+                    { id: "weekly", label: "Weekly" },
+                    { id: "monthly", label: "Monthly" },
+                    { id: "custom", label: "Custom" },
+                  ].map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setFrequency(f.id)}
+                      className={`flex-1 text-xs font-semibold py-2 rounded-lg border transition-all ${
+                        frequency === f.id
+                          ? "bg-orange-600 text-white border-orange-600 shadow-sm"
+                          : "bg-white border-stone-200 text-stone-700 hover:bg-stone-100"
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {frequency === "daily" && (
+                <div>
+                  <label className="text-xs font-semibold text-stone-700 block mb-1">Repeat Every (Days)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={interval}
+                    onChange={(e) => setInterval(e.target.value)}
+                    className="w-full text-xs border border-stone-300 rounded-lg px-3 py-2 bg-white"
+                  />
+                </div>
+              )}
+
+              {frequency === "weekly" && (
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-xs font-semibold text-stone-700 block mb-1">Repeat Every (Weeks)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={interval}
+                      onChange={(e) => setInterval(e.target.value)}
+                      className="w-full text-xs border border-stone-300 rounded-lg px-3 py-2 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-stone-700 block mb-1.5">On Days of Week</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {WEEKDAYS.map((day) => {
+                        const active = daysOfWeek.includes(day);
+                        return (
+                          <button
+                            key={day}
+                            type="button"
+                            onClick={() => toggleDayOfWeek(day)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                              active
+                                ? "bg-orange-500 text-white border-orange-500"
+                                : "bg-white border-stone-200 text-stone-600 hover:bg-stone-100"
+                            }`}
+                          >
+                            {day}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {frequency === "monthly" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-stone-700 block mb-1">Repeat Every (Months)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={interval}
+                      onChange={(e) => setInterval(e.target.value)}
+                      className="w-full text-xs border border-stone-300 rounded-lg px-3 py-2 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-stone-700 block mb-1">Day of Month (1-31)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="31"
+                      value={dayOfMonth}
+                      onChange={(e) => setDayOfMonth(e.target.value)}
+                      className="w-full text-xs border border-stone-300 rounded-lg px-3 py-2 bg-white"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {frequency === "custom" && (
+                <div>
+                  <label className="text-xs font-semibold text-stone-700 block mb-1">Custom Schedule Notes / Interval</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Every 2 weeks on Friday after safety audit"
+                    value={customNotes}
+                    onChange={(e) => setCustomNotes(e.target.value)}
+                    className="w-full text-xs border border-stone-300 rounded-lg px-3 py-2 bg-white"
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <div>
+                  <label className="text-xs font-semibold text-stone-700 block mb-1">Start Date (Optional)</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full text-xs border border-stone-300 rounded-lg px-3 py-2 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-stone-700 block mb-1">End Date (Optional)</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full text-xs border border-stone-300 rounded-lg px-3 py-2 bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 4: Submission Requirements & Technician Instructions */}
+          <div className="p-4 rounded-xl border border-orange-200 bg-orange-50/40 space-y-4">
+            <label className="text-xs font-bold text-stone-800 uppercase tracking-wider block">
+              4. Technician Submission Requirements & Instructions
+            </label>
+            
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-stone-700 block">Required Proof Types</label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { id: "photo", label: "📷 Photo Proof", desc: "Require on-site photos" },
+                  { id: "voice", label: "🎙️ Voice Note", desc: "Require audio explanation" },
+                  { id: "form_fill", label: "📋 Form Fill", desc: "Technician fills form" },
+                  { id: "text_note", label: "📝 Text Notes", desc: "Require short notes" },
+                ].map((pt) => {
+                  const active = requiredProofTypes.includes(pt.id);
+                  return (
+                    <button
+                      key={pt.id}
+                      type="button"
+                      onClick={() =>
+                        setRequiredProofTypes((prev) =>
+                          prev.includes(pt.id) ? prev.filter((i) => i !== pt.id) : [...prev, pt.id]
+                        )
+                      }
+                      className={`p-2.5 rounded-xl border text-left transition-all ${
+                        active
+                          ? "bg-orange-600 text-white border-orange-600 shadow-sm font-semibold"
+                          : "bg-white border-stone-200 text-stone-700 hover:bg-stone-50"
+                      }`}
+                    >
+                      <p className="text-xs">{pt.label}</p>
+                      <p className={`text-[10px] ${active ? "text-orange-100" : "text-stone-400"}`}>{pt.desc}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {requiredProofTypes.includes("photo") && (
+              <div className="flex items-center gap-4 bg-white p-3 rounded-lg border border-stone-200">
+                <label className="text-xs font-semibold text-stone-700">Minimum Photos Required:</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={minPhotos}
+                  onChange={(e) => setMinPhotos(e.target.value)}
+                  className="w-20 text-xs border border-stone-300 rounded-lg px-2.5 py-1.5 bg-stone-50 text-center font-bold text-stone-900"
+                />
+              </div>
+            )}
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-stone-700">Instructions for Technician</label>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setTechnicianInstructions("Please send a clear photo of completed work.")}
+                    className="text-[10px] font-semibold text-orange-700 bg-orange-100 hover:bg-orange-200 px-2 py-0.5 rounded"
+                  >
+                    + Photo Preset
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTechnicianInstructions("Record a voice note describing work completed and test results, plus photo of label.")}
+                    className="text-[10px] font-semibold text-orange-700 bg-orange-100 hover:bg-orange-200 px-2 py-0.5 rounded"
+                  >
+                    + Voice & Photo Preset
+                  </button>
+                </div>
+              </div>
+              <textarea
+                rows={2}
+                value={technicianInstructions}
+                onChange={(e) => setTechnicianInstructions(e.target.value)}
+                placeholder="e.g. Plumber: Take a clear photo of the pipe joint and record a 15-second voice note detailing water pressure test..."
+                className="w-full text-xs border border-stone-300 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
+              />
+            </div>
+          </div>
+
+          {/* Notes / Additional Compliance Notes */}
+          <div>
+            <label className="text-xs font-semibold text-stone-700 block mb-1">
+              Internal Admin Notes (Optional)
+            </label>
+            <textarea
+              rows={2}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add internal compliance notes..."
+              className="w-full text-xs border border-stone-300 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
+            />
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-3 border-t border-stone-100 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-full px-4 py-2"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="inline-flex items-center gap-2 text-xs font-semibold text-white px-6 py-2.5 rounded-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 shadow-sm"
+            >
+              {submitting ? <Loader2 className="h-3.5 w-3.5 fs-spin" /> : <Check className="h-3.5 w-3.5" />}
+              Confirm Assignment
+            </button>
+          </div>
+        </form>
+      </Card>
+    </div>
+  );
+}
+
+function EditAssignmentModal({ assignment, onClose, onSuccess }) {
+  const [status, setStatus] = useState(assignment.status || "active");
+  const [notes, setNotes] = useState(assignment.notes || "");
+  const [dueDate, setDueDate] = useState(
+    assignment.due_date ? new Date(assignment.due_date).toISOString().split("T")[0] : ""
+  );
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.updateAssignment(assignment.id, {
+        status,
+        notes: notes || null,
+        due_date: dueDate ? new Date(dueDate).toISOString() : null,
+      });
+      onSuccess();
+    } catch (err) {
+      setError(err.message || "Failed to update assignment");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 fs-root">
+      <Card className="w-full max-w-md p-6 space-y-4">
+        <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+          <div>
+            <h3 className="fs-display font-bold text-stone-900 text-lg">Edit Assignment</h3>
+            <p className="text-xs text-stone-500">{assignment.template_name} · {assignment.technician_name}</p>
+          </div>
+          <button onClick={onClose} className="p-1 text-stone-400 hover:text-stone-600 rounded-lg">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {error && <p className="text-xs text-rose-600 bg-rose-50 p-2.5 rounded-lg border border-rose-200">{error}</p>}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-xs font-semibold text-stone-700 block mb-1">Status</label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="w-full text-xs border border-stone-300 rounded-xl px-3 py-2 bg-white"
+            >
+              <option value="active">Active</option>
+              <option value="paused">Paused</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-stone-700 block mb-1">Due Date</label>
+            <input
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              className="w-full text-xs border border-stone-300 rounded-xl px-3 py-2 bg-white"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-stone-700 block mb-1">Instructions / Notes</label>
+            <textarea
+              rows={3}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="w-full text-xs border border-stone-300 rounded-xl px-3 py-2 bg-white"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-stone-100">
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-full px-4 py-2"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-white px-5 py-2 rounded-full bg-gradient-to-r from-orange-500 to-orange-600 disabled:opacity-50"
+            >
+              {submitting ? <Loader2 className="h-3.5 w-3.5 fs-spin" /> : <Check className="h-3.5 w-3.5" />} Save Changes
+            </button>
+          </div>
+        </form>
+      </Card>
+    </div>
+  );
+}
+
+function AssignmentsView({ templates = [], technicians = [], currentUser }) {
+  const [assignments, setAssignments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const [filterType, setFilterType] = useState("all"); // "all" | "one_time" | "repeating"
+  const [techFilter, setTechFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState(null);
+
+  const loadAssignments = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.getAssignments();
+      setAssignments(data);
+    } catch (err) {
+      setError(err.message || "Failed to load document assignments");
+    } textFinally: {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAssignments();
+  }, [loadAssignments]);
+
+  const handleDeleteAssignment = async (id) => {
+    if (!window.confirm("Are you sure you want to revoke this document assignment?")) return;
+    try {
+      await api.deleteAssignment(id);
+      loadAssignments();
+    } catch (err) {
+      alert("Failed to revoke assignment: " + err.message);
+    }
+  };
+
+  const filteredAssignments = assignments.filter((asn) => {
+    if (filterType === "one_time" && asn.assignment_type !== "one_time") return false;
+    if (filterType === "repeating" && asn.assignment_type !== "repeating") return false;
+    if (techFilter && asn.technician_id !== techFilter) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const matchTpl = (asn.template_name || "").toLowerCase().includes(q);
+      const matchTech = (asn.technician_name || "").toLowerCase().includes(q);
+      const matchNotes = (asn.notes || "").toLowerCase().includes(q);
+      if (!matchTpl && !matchTech && !matchNotes) return false;
+    }
+    return true;
+  });
+
+  const oneTimeCount = assignments.filter((a) => a.assignment_type === "one_time").length;
+  const repeatingCount = assignments.filter((a) => a.assignment_type === "repeating").length;
+  const uniqueTechsAssigned = new Set(assignments.map((a) => a.technician_id)).size;
+
+  return (
+    <div className="space-y-6">
+      {/* Header & Main Action */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="fs-display text-2xl font-semibold text-stone-900">Assign Documents</h1>
+            <span className="text-xs font-semibold text-orange-700 bg-orange-50 border border-orange-200 px-2.5 py-0.5 rounded-full">
+              {assignments.length} Total Active
+            </span>
+          </div>
+          <p className="text-sm text-stone-500 mt-1">
+            Assign one-time or repeating scheduled documents to field technicians.
+          </p>
+        </div>
+        {currentUser?.role !== "Technician" && (
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="inline-flex items-center justify-center gap-2 text-sm font-semibold text-white px-5 py-2.5 rounded-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-sm transition-all shrink-0"
+          >
+            <Plus className="h-4 w-4" /> Assign Document
+          </button>
+        )}
+      </div>
+
+      {/* Overview Stat Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="p-4 flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600 shrink-0">
+            <ClipboardCheck className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-xs text-stone-500 font-medium">Total Assignments</p>
+            <p className="fs-display text-xl font-bold text-stone-900">{assignments.length}</p>
+          </div>
+        </Card>
+        <Card className="p-4 flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+            <Zap className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-xs text-stone-500 font-medium">One-Time / As Needed</p>
+            <p className="fs-display text-xl font-bold text-stone-900">{oneTimeCount}</p>
+          </div>
+        </Card>
+        <Card className="p-4 flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+            <CalendarDays className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-xs text-stone-500 font-medium">Repeating Schedules</p>
+            <p className="fs-display text-xl font-bold text-stone-900">{repeatingCount}</p>
+          </div>
+        </Card>
+        <Card className="p-4 flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+            <Users className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-xs text-stone-500 font-medium">Assigned Technicians</p>
+            <p className="fs-display text-xl font-bold text-stone-900">{uniqueTechsAssigned}</p>
+          </div>
+        </Card>
+      </div>
+
+      {/* Filter and Search Bar */}
+      <Card className="p-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-1.5 overflow-x-auto fs-scroll pb-1 md:pb-0">
+            {[
+              { id: "all", label: "All Assignments" },
+              { id: "one_time", label: "⚡ One-Time / As Needed" },
+              { id: "repeating", label: "📅 Repeating Schedules" },
+            ].map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setFilterType(f.id)}
+                className={`text-xs font-semibold px-3.5 py-2 rounded-full whitespace-nowrap transition-all ${
+                  filterType === f.id
+                    ? "bg-stone-900 text-white shadow-sm"
+                    : "text-stone-600 hover:bg-stone-100"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1 md:w-64">
+              <Search className="h-4 w-4 text-stone-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                placeholder="Search doc or technician..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full text-xs pl-9 pr-3 py-2 border border-stone-200 rounded-xl bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
+              />
+            </div>
+            <select
+              value={techFilter}
+              onChange={(e) => setTechFilter(e.target.value)}
+              className="text-xs border border-stone-200 rounded-xl px-3 py-2 bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-200 text-stone-700"
+            >
+              <option value="">All Technicians</option>
+              {technicians.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </Card>
+
+      {/* Main Content Area */}
+      {loading ? (
+        <Spinner label="Loading document assignments..." />
+      ) : error ? (
+        <Card className="p-6 text-center text-rose-600">
+          <p>{error}</p>
+          <button onClick={loadAssignments} className="mt-3 text-xs font-semibold text-orange-600 underline">
+            Try again
+          </button>
+        </Card>
+      ) : filteredAssignments.length === 0 ? (
+        <Card className="p-12 text-center">
+          <div className="h-12 w-12 rounded-2xl bg-orange-100 flex items-center justify-center text-orange-600 mx-auto mb-3">
+            <ClipboardCheck className="h-6 w-6" />
+          </div>
+          <h3 className="fs-display font-semibold text-stone-900 text-lg">No Document Assignments Found</h3>
+          <p className="text-sm text-stone-500 max-w-sm mx-auto mt-1 mb-5">
+            {assignments.length === 0
+              ? "No documents have been assigned to technicians yet. Click 'Assign Document' to get started."
+              : "No assignments match your current filters or search criteria."}
+          </p>
+          {currentUser?.role !== "Technician" && (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="inline-flex items-center gap-2 text-xs font-semibold text-white px-4 py-2 rounded-full bg-gradient-to-r from-orange-500 to-orange-600 shadow-sm"
+            >
+              <Plus className="h-3.5 w-3.5" /> Assign a Document Now
+            </button>
+          )}
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredAssignments.map((asn) => {
+            const badge = formatScheduleBadge(asn);
+            const BadgeIcon = badge.icon;
+            const TradeIcon = TRADE_ICON[asn.template_trade] || Building2;
+
+            return (
+              <Card key={asn.id} className="p-5 flex flex-col justify-between hover:border-orange-200 transition-all">
+                <div className="space-y-3">
+                  {/* Top Row: Trade & Schedule Badge */}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-stone-100 text-stone-700">
+                      <TradeIcon className="h-3.5 w-3.5 text-orange-600" />
+                      {asn.template_trade || "General"}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${badge.tone}`}>
+                      <BadgeIcon className="h-3 w-3" />
+                      {badge.label}
+                    </span>
+                  </div>
+
+                  {/* Document & Tech Names */}
+                  <div>
+                    <h3 className="fs-display text-base font-bold text-stone-900 leading-snug">
+                      {asn.template_name}
+                    </h3>
+                    <div className="flex items-center gap-2 mt-2 pt-2 border-t border-stone-100 text-xs text-stone-600">
+                      <Users className="h-3.5 w-3.5 text-orange-600 shrink-0" />
+                      <span>Assigned to: <strong className="text-stone-800 font-semibold">{asn.technician_name}</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Schedule / Due Date details */}
+                  <div className="space-y-1 bg-stone-50/80 p-3 rounded-xl border border-stone-100 text-xs">
+                    {asn.assignment_type === "one_time" ? (
+                      <div className="flex items-center justify-between text-stone-600">
+                        <span>Due Date:</span>
+                        <span className="font-semibold text-stone-800">
+                          {asn.due_date ? new Date(asn.due_date).toLocaleDateString() : "As required"}
+                        </span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between text-stone-600">
+                          <span>Frequency:</span>
+                          <span className="font-semibold text-stone-800 capitalize">{asn.frequency || "Custom"}</span>
+                        </div>
+                        {asn.start_date && (
+                          <div className="flex items-center justify-between text-stone-500 text-[11px]">
+                            <span>Starts:</span>
+                            <span>{new Date(asn.start_date).toLocaleDateString()}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {asn.notes && (
+                      <div className="pt-2 border-t border-stone-200/60 text-stone-500 italic text-[11px] truncate">
+                        "{asn.notes}"
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Footer / Actions */}
+                <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    {asn.status || "Active"}
+                  </span>
+
+                  {currentUser?.role !== "Technician" && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setEditingAssignment(asn)}
+                        className="p-1.5 text-stone-400 hover:text-stone-700 hover:bg-stone-100 rounded-lg transition"
+                        title="Edit schedule / notes"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAssignment(asn.id)}
+                        className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                        title="Revoke assignment"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Modals */}
+      {showCreateModal && (
+        <CreateAssignmentModal
+          templates={templates}
+          technicians={technicians}
+          onClose={() => setShowCreateModal(false)}
+          onSuccess={() => {
+            setShowCreateModal(false);
+            loadAssignments();
+          }}
+        />
+      )}
+
+      {editingAssignment && (
+        <EditAssignmentModal
+          assignment={editingAssignment}
+          onClose={() => setEditingAssignment(null)}
+          onSuccess={() => {
+            setEditingAssignment(null);
+            loadAssignments();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+
+/* ======================================================================
    DASHBOARD — ROOT (fetches everything from the live API)
    ====================================================================== */
 
 const VIEW_TITLES = {
-  overview: "Overview", jobs: "Jobs", templates: "Templates", documents: "Documents",
-  technicians: "Technicians", compliance: "Compliance", analytics: "Analytics", settings: "Settings",
+  overview: "Overview", jobs: "Jobs", templates: "Templates", assignments: "Assign Documents",
+  documents: "Documents", technicians: "Technicians", compliance: "Compliance", analytics: "Analytics", settings: "Settings",
 };
 
 function Dashboard({ onLogout }) {
@@ -3737,6 +4673,13 @@ function Dashboard({ onLogout }) {
         loading={loading.templates}
         error={errors.templates}
         onRetry={refetch.templates}
+      />
+    ),
+    assignments: (
+      <AssignmentsView
+        templates={state.templates}
+        technicians={state.technicians}
+        currentUser={currentUser}
       />
     ),
     documents: (

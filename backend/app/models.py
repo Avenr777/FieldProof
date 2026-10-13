@@ -105,6 +105,18 @@ class TemplateAssignment(Base):
     id = Column(String, primary_key=True, default=lambda: gen_id("ASN"))
     template_id = Column(String, ForeignKey("templates.id", ondelete="CASCADE"), nullable=False)
     technician_id = Column(String, ForeignKey("technicians.id", ondelete="CASCADE"), nullable=False)
+    assignment_type = Column(String, default="one_time")  # "one_time" | "repeating"
+    frequency = Column(String, nullable=True)  # "daily" | "weekly" | "monthly" | "custom"
+    frequency_details = Column(JSON, nullable=True)  # { interval, days_of_week, day_of_month, custom_notes }
+    due_date = Column(DateTime, nullable=True)
+    start_date = Column(DateTime, nullable=True)
+    end_date = Column(DateTime, nullable=True)
+    status = Column(String, default="active")  # "active" | "completed" | "paused"
+    notes = Column(Text, nullable=True)
+    required_proof_types = Column(JSON, default=lambda: ["photo", "voice"])  # ["photo", "voice", "form_fill", "text_note"]
+    min_photos = Column(Integer, default=1)
+    require_voice = Column(Boolean, default=False)
+    technician_instructions = Column(Text, nullable=True)
     assigned_at = Column(DateTime, default=datetime.utcnow)
 
     template = relationship("Template", backref="assignments")
@@ -187,6 +199,8 @@ class Document(Base):
     overall_confidence = Column(Float, default=0.0)
     status = Column(Enum(DocStatus), default=DocStatus.pending_review)
     file_url = Column(String, nullable=True)
+    auto_filled = Column(Boolean, default=True)
+    field_sources = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     job = relationship("Job", back_populates="documents")

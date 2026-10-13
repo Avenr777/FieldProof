@@ -238,16 +238,49 @@ export async function getTemplate(templateId) {
  * @param {string} templateId
  * @param {string|string[]|null} technicianIdsOrId
  */
-export async function assignTemplate(templateId, technicianIdsOrId) {
+export async function assignTemplate(templateId, technicianIdsOrId, extraOptions = {}) {
   const payload = Array.isArray(technicianIdsOrId)
-    ? { technician_ids: technicianIdsOrId }
-    : { technician_id: technicianIdsOrId ?? null };
+    ? { technician_ids: technicianIdsOrId, ...extraOptions }
+    : { technician_id: technicianIdsOrId ?? null, ...extraOptions };
 
   return apiFetch(`/templates/${templateId}/assign`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
+
+// ─── Document Assignments (One-Time & Repeating) ────────────────────────────────
+
+export async function getAssignments(params = {}) {
+  const query = new URLSearchParams();
+  if (params.technician_id) query.set("technician_id", params.technician_id);
+  if (params.template_id) query.set("template_id", params.template_id);
+  if (params.assignment_type) query.set("assignment_type", params.assignment_type);
+  if (params.status) query.set("status", params.status);
+  const qs = query.toString() ? `?${query.toString()}` : "";
+  return apiFetch(`/assignments${qs}`);
+}
+
+export async function createAssignment(payload) {
+  return apiFetch("/assignments", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateAssignment(assignmentId, payload) {
+  return apiFetch(`/assignments/${assignmentId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteAssignment(assignmentId) {
+  return apiFetch(`/assignments/${assignmentId}`, {
+    method: "DELETE",
+  });
+}
+
 
 /**
  * Delete a template by ID.

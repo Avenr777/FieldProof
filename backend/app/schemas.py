@@ -195,6 +195,10 @@ class TemplateFillRequest(BaseModel):
 class TemplateAssignRequest(BaseModel):
     technician_id: Optional[str] = None
     technician_ids: Optional[list[str]] = None
+    required_proof_types: Optional[list[str]] = None
+    min_photos: Optional[int] = 1
+    require_voice: Optional[bool] = False
+    technician_instructions: Optional[str] = None
 
 
 class TemplateOut(BaseModel):
@@ -208,6 +212,74 @@ class TemplateOut(BaseModel):
     assigned_at: Optional[datetime] = None
     assigned_technician_ids: list[str] = []
     updated_at: datetime
+    # Assignment schedule info attached when fetching assigned templates for technician
+    assignment_type: Optional[str] = None
+    frequency: Optional[str] = None
+    frequency_details: Optional[dict[str, Any]] = None
+    due_date: Optional[datetime] = None
+    notes: Optional[str] = None
+    required_proof_types: Optional[list[str]] = None
+    min_photos: Optional[int] = 1
+    require_voice: Optional[bool] = False
+    technician_instructions: Optional[str] = None
+
+
+# ---------- Document Assignments ----------
+
+class AssignmentCreate(BaseModel):
+    template_ids: list[str]  # single or multiple templates
+    technician_ids: list[str]  # single or multiple technicians
+    assignment_type: str = "one_time"  # "one_time" | "repeating"
+    frequency: Optional[str] = None  # "daily" | "weekly" | "monthly" | "custom"
+    frequency_details: Optional[dict[str, Any]] = None
+    due_date: Optional[datetime] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    notes: Optional[str] = None
+    required_proof_types: Optional[list[str]] = None
+    min_photos: Optional[int] = 1
+    require_voice: Optional[bool] = False
+    technician_instructions: Optional[str] = None
+
+
+class AssignmentUpdate(BaseModel):
+    assignment_type: Optional[str] = None
+    frequency: Optional[str] = None
+    frequency_details: Optional[dict[str, Any]] = None
+    due_date: Optional[datetime] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
+    required_proof_types: Optional[list[str]] = None
+    min_photos: Optional[int] = None
+    require_voice: Optional[bool] = None
+    technician_instructions: Optional[str] = None
+
+
+class AssignmentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    template_id: str
+    template_name: Optional[str] = None
+    template_trade: Optional[str] = None
+    technician_id: str
+    technician_name: Optional[str] = None
+    technician_trade: Optional[str] = None
+    assignment_type: str
+    frequency: Optional[str] = None
+    frequency_details: Optional[dict[str, Any]] = None
+    due_date: Optional[datetime] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    status: str
+    notes: Optional[str] = None
+    required_proof_types: Optional[list[str]] = None
+    min_photos: Optional[int] = 1
+    require_voice: Optional[bool] = False
+    technician_instructions: Optional[str] = None
+    assigned_at: datetime
+
 
 
 # ---------- Documents ----------
@@ -228,6 +300,8 @@ class DocumentOut(BaseModel):
     overall_confidence: float
     status: str
     file_url: Optional[str] = None
+    auto_filled: Optional[bool] = True
+    field_sources: Optional[dict[str, Any]] = None
     created_at: datetime
     suggested_values: Optional[dict[str, Any]] = None
 

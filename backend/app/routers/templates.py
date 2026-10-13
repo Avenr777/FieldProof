@@ -14,8 +14,17 @@ from app.services.docx_writer import fill_docx
 router = APIRouter(prefix="/templates", tags=["templates"])
 
 
-def _serialize_template(tpl: models.Template) -> schemas.TemplateOut:
+def _serialize_template(tpl: models.Template, tech_id: str = None) -> schemas.TemplateOut:
     assigned_ids = [asn.technician_id for asn in tpl.assignments] if hasattr(tpl, "assignments") and tpl.assignments else []
+    
+    # Extract assignment schedule info for specific technician or first assignment
+    asn_info = None
+    if hasattr(tpl, "assignments") and tpl.assignments:
+        if tech_id:
+            asn_info = next((a for a in tpl.assignments if a.technician_id == tech_id), tpl.assignments[0])
+        else:
+            asn_info = tpl.assignments[0]
+
     return schemas.TemplateOut(
         id=tpl.id,
         name=tpl.name,
@@ -24,6 +33,15 @@ def _serialize_template(tpl: models.Template) -> schemas.TemplateOut:
         times_used=tpl.times_used or 0,
         assigned_technician_ids=assigned_ids,
         updated_at=tpl.updated_at,
+        assignment_type=asn_info.assignment_type if asn_info else "one_time",
+        frequency=asn_info.frequency if asn_info else None,
+        frequency_details=asn_info.frequency_details if asn_info else None,
+        due_date=asn_info.due_date if asn_info else None,
+        notes=asn_info.notes if asn_info else None,
+        required_proof_types=asn_info.required_proof_types if (asn_info and asn_info.required_proof_types is not None) else ["photo", "voice"],
+        min_photos=asn_info.min_photos if (asn_info and asn_info.min_photos is not None) else 1,
+        require_voice=asn_info.require_voice if (asn_info and asn_info.require_voice is not None) else False,
+        technician_instructions=asn_info.technician_instructions if asn_info else None,
     )
 
 
@@ -55,7 +73,7 @@ def get_assigned_templates(
     if not tpl_ids:
         return []
     templates = db.query(models.Template).filter(models.Template.id.in_(tpl_ids)).all()
-    return [_serialize_template(t) for t in templates]
+    return [_serialize_template(t, tech_id=tech.id) for t in templates]
 
 
 @router.get("/my", response_model=list[schemas.TemplateOut])
@@ -89,7 +107,7 @@ def my_templates(
         .order_by(models.Template.assigned_at.desc().nullslast(), models.Template.updated_at.desc())
         .all()
     )
-    return assigned_templates
+    return [_serialize_template(t, tech_id=tech.id) for t in assigned_templates]
 
 
 @router.post("/{template_id}/assign", response_model=schemas.TemplateOut)
@@ -114,6 +132,8 @@ def assign_template(
 
     db.query(models.TemplateAssignment).filter(models.TemplateAssignment.template_id == tpl.id).delete(synchronize_session=False)
 
+    proof_types = payload.required_proof_types if payload.required_proof_types is not None else ["photo", "voice"]
+
     for tech_id in target_ids:
         tech = (
             db.query(models.Technician)
@@ -122,7 +142,14 @@ def assign_template(
         )
         if not tech:
             raise HTTPException(status_code=404, detail=f"Technician {tech_id} not found")
-        db.add(models.TemplateAssignment(template_id=tpl.id, technician_id=tech.id))
+        db.add(models.TemplateAssignment(
+            template_id=tpl.id,
+            technician_id=tech.id,
+            required_proof_types=proof_types,
+            min_photos=payload.min_photos or 1,
+            require_voice=payload.require_voice if payload.require_voice is not None else False,
+            technician_instructions=payload.technician_instructions,
+        ))
 
     if target_ids:
         tpl.technician_id = target_ids[0]

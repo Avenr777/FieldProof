@@ -16,6 +16,11 @@ export type Template = {
   assigned_at?: string | null;
   assigned_technician_ids?: string[];
   updated_at: string;
+  assignment_type?: "one_time" | "repeating";
+  frequency?: "daily" | "weekly" | "monthly" | "custom" | null;
+  frequency_details?: Record<string, any> | null;
+  due_date?: string | null;
+  notes?: string | null;
 };
 
 export type CaptureSession = {

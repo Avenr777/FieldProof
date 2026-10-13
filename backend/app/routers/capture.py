@@ -74,12 +74,29 @@ def start_capture_session(
     """
     job, template = _resolve_assignment(db, current_user, payload.template_id)
     tech = _get_technician_for_user(db, current_user)
+
+    # Query assignment details for this tech + template
+    asn = None
+    if template and tech:
+        asn = (
+            db.query(models.TemplateAssignment)
+            .filter(
+                models.TemplateAssignment.template_id == template.id,
+                models.TemplateAssignment.technician_id == tech.id,
+            )
+            .first()
+        )
+
     db.commit()
     return {
         "job_id": job.id,
         "template_id": template.id if template else None,
         "template_name": template.name if template else None,
         "technician_id": tech.id if tech else None,
+        "required_proof_types": asn.required_proof_types if (asn and asn.required_proof_types is not None) else ["photo", "voice"],
+        "min_photos": asn.min_photos if (asn and asn.min_photos is not None) else 1,
+        "require_voice": asn.require_voice if (asn and asn.require_voice is not None) else False,
+        "technician_instructions": asn.technician_instructions if asn else None,
     }
 
 

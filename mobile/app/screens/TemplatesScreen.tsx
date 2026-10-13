@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
     gap: 14
   },
   card: {
-    backgroundColor: colors.cardBg || "#141416",
+    backgroundColor: colors.darkSurface,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,

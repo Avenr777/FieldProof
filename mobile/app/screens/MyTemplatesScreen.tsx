@@ -39,6 +39,7 @@ function tap() {
 export function MyTemplatesScreen({ navigation }: Props) {
   const { user, logout } = useAuth();
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [filterTab, setFilterTab] = useState<"all" | "one_time" | "repeating">("all");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,8 +74,30 @@ export function MyTemplatesScreen({ navigation }: Props) {
     navigation.navigate("Capture", { template });
   };
 
+  const filteredTemplates = templates.filter((tpl) => {
+    if (filterTab === "one_time") return tpl.assignment_type === "one_time";
+    if (filterTab === "repeating") return tpl.assignment_type === "repeating";
+    return true;
+  });
+
+  const getScheduleLabel = (tpl: Template) => {
+    if (tpl.assignment_type === "one_time" || !tpl.frequency) {
+      return { text: "⚡ One-Time / As Needed", isRepeating: false };
+    }
+    const freq = (tpl.frequency || "").toLowerCase();
+    const details = tpl.frequency_details || {};
+    if (freq === "daily") return { text: "📅 Daily Schedule", isRepeating: true };
+    if (freq === "weekly") {
+      const days = (details.days_of_week || []).join(", ");
+      return { text: days ? `📅 Weekly (${days})` : "📅 Weekly Schedule", isRepeating: true };
+    }
+    if (freq === "monthly") return { text: `📅 Monthly (Day ${details.day_of_month || 1})`, isRepeating: true };
+    return { text: "📅 Scheduled Document", isRepeating: true };
+  };
+
   const renderTemplate = ({ item }: { item: Template }) => {
     const icon = TRADE_ICON[item.trade] || "documents";
+    const schedule = getScheduleLabel(item);
 
     return (
       <Pressable
@@ -86,13 +109,28 @@ export function MyTemplatesScreen({ navigation }: Props) {
             <Ionicons name={icon} size={14} color={colors.orangeBright} />
             <Text style={styles.tradeText}>{item.trade}</Text>
           </View>
-          <View style={styles.actionPill}>
-            <Text style={styles.actionText}>Capture</Text>
-            <Ionicons name="chevron-forward" size={13} color={colors.orangeBright} />
+          <View style={[styles.scheduleBadge, schedule.isRepeating ? styles.scheduleRepeating : styles.scheduleOneTime]}>
+            <Text style={[styles.scheduleText, schedule.isRepeating ? styles.scheduleTextRepeating : styles.scheduleTextOneTime]}>
+              {schedule.text}
+            </Text>
           </View>
         </View>
 
         <Text style={styles.templateName}>{item.name}</Text>
+
+        {item.due_date ? (
+          <View style={styles.dueDateRow}>
+            <Ionicons name="calendar-outline" size={12} color={colors.muted} />
+            <Text style={styles.dueDateText}>Due: {new Date(item.due_date).toLocaleDateString()}</Text>
+          </View>
+        ) : null}
+
+        {item.notes ? (
+          <View style={styles.notesBox}>
+            <Ionicons name="information-circle-outline" size={13} color={colors.orangeBright} />
+            <Text style={styles.notesText} numberOfLines={2}>{item.notes}</Text>
+          </View>
+        ) : null}
 
         <View style={styles.divider} />
 
@@ -101,9 +139,9 @@ export function MyTemplatesScreen({ navigation }: Props) {
             <Ionicons name="list-outline" size={13} color={colors.subtle} />
             <Text style={styles.metaText}>{item.field_map.length} fields to fill</Text>
           </View>
-          <View style={styles.metaWrap}>
-            <Ionicons name="checkmark-done-outline" size={13} color={colors.subtle} />
-            <Text style={styles.metaText}>Used {item.times_used}×</Text>
+          <View style={styles.actionPill}>
+            <Text style={styles.actionText}>Capture</Text>
+            <Ionicons name="chevron-forward" size={13} color={colors.orangeBright} />
           </View>
         </View>
 
@@ -182,6 +220,31 @@ export function MyTemplatesScreen({ navigation }: Props) {
             Forms assigned to you by your operator — tap one to start capturing
           </Text>
         </View>
+
+        {/* Filter Chips Bar */}
+        <View style={styles.filterRow}>
+          {[
+            { id: "all", label: `All (${templates.length})` },
+            { id: "one_time", label: "⚡ One-Time" },
+            { id: "repeating", label: "📅 Scheduled" },
+          ].map((tab) => {
+            const active = filterTab === tab.id;
+            return (
+              <Pressable
+                key={tab.id}
+                onPress={() => {
+                  tap();
+                  setFilterTab(tab.id as any);
+                }}
+                style={[styles.filterChip, active && styles.filterChipActive]}
+              >
+                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                  {tab.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
 
       {error ? (
@@ -196,10 +259,10 @@ export function MyTemplatesScreen({ navigation }: Props) {
         </View>
       ) : (
         <FlatList
-          data={templates}
+          data={filteredTemplates}
           keyExtractor={(template) => template.id}
           renderItem={renderTemplate}
-          contentContainerStyle={templates.length ? styles.listContent : styles.emptyList}
+          contentContainerStyle={filteredTemplates.length ? styles.listContent : styles.emptyList}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -212,10 +275,11 @@ export function MyTemplatesScreen({ navigation }: Props) {
               <View style={styles.emptyIconCircle}>
                 <Ionicons name="documents-outline" size={26} color={colors.orangeBright} />
               </View>
-              <Text style={styles.emptyTitle}>No templates assigned yet</Text>
+              <Text style={styles.emptyTitle}>No assigned forms found</Text>
               <Text style={styles.emptyHelp}>
-                Your operator assigns forms from the dashboard. Once one is assigned to you it
-                appears here and you can start capturing right away.
+                {templates.length === 0
+                  ? "Your operator assigns forms from the dashboard. Once one is assigned to you it appears here."
+                  : "No assigned forms match the selected schedule filter."}
               </Text>
             </View>
           }
@@ -510,5 +574,82 @@ const styles = StyleSheet.create({
     textAlign: "center",
     maxWidth: 260,
     lineHeight: 18
+  },
+  filterRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 4
+  },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: colors.darkElevated,
+    borderWidth: 1,
+    borderColor: colors.darkBorder
+  },
+  filterChipActive: {
+    backgroundColor: colors.orange,
+    borderColor: colors.orange
+  },
+  filterChipText: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: "700"
+  },
+  filterChipTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "800"
+  },
+  scheduleBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1
+  },
+  scheduleOneTime: {
+    backgroundColor: "rgba(251, 191, 107, 0.12)",
+    borderColor: "rgba(251, 191, 107, 0.3)"
+  },
+  scheduleRepeating: {
+    backgroundColor: "rgba(242, 98, 42, 0.15)",
+    borderColor: "rgba(242, 98, 42, 0.4)"
+  },
+  scheduleText: {
+    fontSize: 11,
+    fontWeight: "700"
+  },
+  scheduleTextOneTime: {
+    color: "#FBBF6B"
+  },
+  scheduleTextRepeating: {
+    color: colors.orangeBright
+  },
+  dueDateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4
+  },
+  dueDateText: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: "600"
+  },
+  notesBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.darkElevated,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.darkBorder
+  },
+  notesText: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: "500",
+    flex: 1
   }
 });

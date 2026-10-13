@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.database import Base, engine, ensure_sqlite_columns
 from app.websocket import manager
-from app.routers import auth, jobs, technicians, templates, documents, compliance, analytics, capture, integrations
+from app.routers import auth, jobs, technicians, templates, documents, compliance, analytics, capture, integrations, assignments
 
 # Creates tables on first run if they don't exist yet (fine for dev/SQLite;
 # use Alembic migrations once this is backed by Postgres in production).
@@ -38,6 +38,7 @@ app.include_router(compliance.router)
 app.include_router(analytics.router)
 app.include_router(capture.router)
 app.include_router(integrations.router)
+app.include_router(assignments.router)
 
 
 
@@ -60,6 +61,6 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            await websocket.receive_text()  # keep the connection open
+            await websocket.receive_text()  
     except WebSocketDisconnect:
         manager.disconnect(websocket)

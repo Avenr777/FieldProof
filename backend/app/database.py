@@ -36,6 +36,16 @@ def ensure_sqlite_columns() -> None:
             ("assigned_at", "DATETIME"),
         ],
         "captures": [("technician_id", "STRING"), ("template_id", "STRING")],
+        "template_assignments": [
+            ("assignment_type", "STRING"),
+            ("frequency", "STRING"),
+            ("frequency_details", "JSON"),
+            ("due_date", "DATETIME"),
+            ("start_date", "DATETIME"),
+            ("end_date", "DATETIME"),
+            ("status", "STRING"),
+            ("notes", "TEXT"),
+        ],
     }
     with engine.connect() as conn:
         for table, columns in needed.items():

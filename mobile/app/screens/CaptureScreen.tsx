@@ -51,11 +51,12 @@ export function CaptureScreen({ route, navigation }: Props) {
   // screen is stored under that owner trail.
   useEffect(() => {
     let cancelled = false;
+    if (!template) return () => { cancelled = true; };
     startCaptureSession(template.id)
       .then((s) => { if (!cancelled) setSession(s); })
       .catch((e) => { if (!cancelled) setSessionError(e instanceof Error ? e.message : "Could not open capture session."); });
     return () => { cancelled = true; };
-  }, [template.id]);
+  }, [template?.id]);
 
   // Unmount-only cleanup: release the mic, timer, and any loaded sound exactly once.
   // Uses refs (not state deps) so changing recording state never re-runs this and
@@ -159,6 +160,19 @@ export function CaptureScreen({ route, navigation }: Props) {
       setUploading(false);
     }
   };
+
+  if (!template) {
+    return (
+      <Screen>
+        <View style={styles.center}>
+          <Ionicons name="document-text-outline" size={28} color={colors.orangeBright} />
+          <Text style={styles.permissionText}>Select an assigned template before starting capture.</Text>
+          <PrimaryButton title="Back to Templates" onPress={() => navigation.goBack()} variant="primary" />
+        </View>
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.screen}>
@@ -186,6 +200,23 @@ export function CaptureScreen({ route, navigation }: Props) {
           </View>
         )}
       </LinearGradient>
+
+      <Pressable
+        onPress={() => {
+          tap();
+          navigation.navigate("FillTemplate", { template });
+        }}
+        style={({ pressed }) => [styles.textFillBanner, pressed && styles.actionPressed]}
+      >
+        <View style={styles.textFillIconBox}>
+          <Ionicons name="create-outline" size={19} color={colors.orangeBright} />
+        </View>
+        <View style={styles.textFillCopy}>
+          <Text style={styles.textFillTitle}>Fill With Text</Text>
+          <Text style={styles.textFillCaption}>Enter the form values and generate the completed document.</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={19} color={colors.orangeBright} />
+      </Pressable>
 
       {/* Voice Note Section */}
       <View style={styles.section}>
@@ -466,6 +497,38 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
     flex: 1
+  },
+  textFillBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: colors.orangeLight,
+    borderWidth: 1,
+    borderColor: colors.orangeBorder
+  },
+  textFillIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: colors.darkElevated,
+    justifyContent: "center",
+    alignItems: "center"
+  },
+  textFillCopy: {
+    flex: 1,
+    gap: 2
+  },
+  textFillTitle: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "800"
+  },
+  textFillCaption: {
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 17
   },
   section: {
     backgroundColor: colors.darkSurface,
