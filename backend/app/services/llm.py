@@ -321,16 +321,56 @@ class OpenAILLMExtractor:
         return {}, 0, 0, 0.0, "error"
 
 
+class Llama3LLMExtractor(OpenAILLMExtractor):
+    """
+    Open-weight LLM extractor targeting Llama-3-8B.
+    Connects to any OpenAI-compatible local server (Ollama, vLLM, llama.cpp).
+    Default base URL: http://localhost:11434/v1
+    Default model: llama3:8b (or llama-3-8b)
+    """
+
+    def __init__(
+        self,
+        base_url: str | None = None,
+        model: str = "llama3:8b",
+        api_key: str = "ollama",
+        prompt_version: str = "v1",
+    ):
+        target_base_url = (
+            base_url
+            or os.getenv("LLAMA_BASE_URL")
+            or os.getenv("OLLAMA_BASE_URL")
+            or "http://localhost:11434/v1"
+        )
+        target_model = os.getenv("AI_MODEL_CHAT_OPEN_WEIGHT") or model
+        super().__init__(
+            api_key=api_key or "ollama",
+            base_url=target_base_url,
+            model=target_model,
+            prompt_version=prompt_version,
+        )
+
+
 # ---------------------------------------------------------------------------
 # Factory / convenience function
 # ---------------------------------------------------------------------------
 
-def get_extractor(prompt_version: str = "v1") -> OpenAILLMExtractor | None:
+def get_extractor(
+    prompt_version: str = "v1",
+    model: str | None = None,
+) -> OpenAILLMExtractor | None:
+    target_model = model or settings.ai_model_chat
+    if target_model and ("llama" in target_model.lower() or os.getenv("USE_OPEN_WEIGHT", "").lower() in ("true", "1")):
+        return Llama3LLMExtractor(
+            model=target_model if "llama" in target_model.lower() else "llama3:8b",
+            prompt_version=prompt_version,
+        )
+
     if settings.openai_api_key:
         return OpenAILLMExtractor(
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url,
-            model=settings.ai_model_chat,
+            model=target_model or settings.ai_model_chat,
             prompt_version=prompt_version,
         )
     return None
@@ -340,6 +380,7 @@ def extract_fields(
     transcript: str,
     trade: str = "electrical",
     prompt_version: str = "v1",
+    model: str | None = None,
 ) -> dict[str, Any] | None:
     """
     Convenience wrapper: extracts structured fields from a transcript.
@@ -348,7 +389,7 @@ def extract_fields(
     The returned dict contains field-name keys (each with value/evidence/
     confidence/grounded/status) plus a '_meta' key for logging.
     """
-    extractor = get_extractor(prompt_version=prompt_version)
+    extractor = get_extractor(prompt_version=prompt_version, model=model)
     if extractor is None:
         logger.warning("No LLM provider configured; skipping extraction")
         return None

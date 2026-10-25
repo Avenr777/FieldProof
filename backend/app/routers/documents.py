@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -199,6 +200,88 @@ async def review_document(
     db.commit()
     db.refresh(doc)
     await manager.broadcast({"event": "document_reviewed", "document_id": doc.id, "status": doc.status.value if hasattr(doc.status, "value") else str(doc.status)})
+    return doc
+
+
+
+@router.patch("/{doc_id}/fields", response_model=schemas.DocumentOut)
+async def patch_document_fields(
+    doc_id: str,
+    payload: schemas.DocumentFieldPatch,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    """
+    Reviewer edits one or more extracted fields on a document.
+
+    Each changed field is appended to ``Document.field_edit_log`` so the
+    correction-rate can be measured for the paper (how often the AI was wrong
+    and a human had to fix it).
+
+    Body::
+
+        {
+            "edits": [
+                {"field": "voltage", "new_value": "240V"},
+                {"field": "rating",  "new_value": "32A"}
+            ],
+            "comment": "Voltage mis-read by model"
+        }
+    """
+    doc = _get_owned_doc(db, doc_id, current_user)
+
+    fields: list[dict] = list(doc.extracted_fields or [])
+    edit_log: list[dict] = list(doc.field_edit_log or [])
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    field_index = {f["field"]: i for i, f in enumerate(fields) if isinstance(f, dict)}
+
+    for edit in payload.edits:
+        old_value = None
+        if edit.field in field_index:
+            old_value = fields[field_index[edit.field]].get("value")
+            fields[field_index[edit.field]]["value"] = edit.new_value
+            # Reset grounding/status so the edit is treated as human-verified
+            fields[field_index[edit.field]]["source"] = "human_edit"
+            fields[field_index[edit.field]]["grounded"] = True
+            fields[field_index[edit.field]]["status"] = "ok"
+        else:
+            # Field not yet extracted — add a new row
+            fields.append({
+                "field": edit.field,
+                "value": edit.new_value,
+                "source": "human_edit",
+                "confidence": 1.0,
+                "evidence": None,
+                "grounded": True,
+                "status": "ok",
+            })
+
+        edit_log.append({
+            "field": edit.field,
+            "old_value": old_value,
+            "new_value": edit.new_value,
+            "user_id": current_user.id,
+            "timestamp": now_iso,
+            "comment": payload.comment,
+        })
+
+    doc.extracted_fields = fields
+    doc.field_edit_log = edit_log
+
+    # Recompute overall confidence: human edits count as 1.0
+    confidences = [f.get("confidence", 0.0) for f in fields if isinstance(f, dict)]
+    doc.overall_confidence = sum(confidences) / len(confidences) if confidences else 0.0
+
+    db.commit()
+    db.refresh(doc)
+
+    await manager.broadcast({
+        "event": "document_fields_patched",
+        "document_id": doc.id,
+        "edited_fields": [e.field for e in payload.edits],
+        "editor": current_user.full_name,
+    })
     return doc
 
 

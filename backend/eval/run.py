@@ -3,13 +3,16 @@ Evaluation harness for FieldProof Whisper + LLM extraction pipeline.
 
 Usage
 -----
+    # From backend/
     python -m eval.run --config eval/config_baseline.json
 
-Or with overrides:
+    # Or with overrides:
     python -m eval.run --dataset data/electrical_gold.jsonl \
                        --prompt-version v1 \
                        --model gpt-4o-mini \
                        --output-dir eval/results
+
+Paths are resolved relative to backend/ (the directory containing this package).
 
 What it measures
 ----------------
@@ -57,8 +60,24 @@ from pathlib import Path
 from typing import Any
 
 # Ensure backend package is on the path when run as a module
-_REPO_ROOT = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(_REPO_ROOT / "backend"))
+_BACKEND_DIR = Path(__file__).parent.parent  # .../backend/
+sys.path.insert(0, str(_BACKEND_DIR))
+
+
+def _resolve(path: str) -> str:
+    """
+    Resolve a path relative to the backend/ directory so the harness works
+    regardless of which directory `python -m eval.run` is called from.
+    If the path is already absolute, return it unchanged.
+    """
+    p = Path(path)
+    if p.is_absolute():
+        return str(p)
+    # If it exists relative to CWD, prefer that (explicit override)
+    if p.exists():
+        return str(p)
+    # Fall back to backend/-relative resolution
+    return str(_BACKEND_DIR / p)
 
 from app.config import settings
 
@@ -383,7 +402,22 @@ def run_condition(
                     if fv.get("value") is not None and fv.get("status") == "ungrounded":
                         pred.grounding_failure_count += 1
         except Exception as e:
-            logger.error("Extraction failed for sample %s: %s", sample.id, e)
+            err_msg = str(e)
+            logger.error("Extraction failed for sample %s: %s", sample.id, err_msg)
+            if "insufficient_quota" in err_msg or "credit_balance_exhausted" in err_msg:
+                logger.critical(
+                    "FATAL: OpenAI credit balance exhausted (429). "
+                    "Add credits at https://platform.openai.com/settings/organization/billing/ "
+                    "or run with a local open-weight model (e.g. Llama-3-8B via Ollama)."
+                )
+                results.append(pred)
+                break
+            elif "401" in err_msg or "invalid_api_key" in err_msg:
+                logger.critical(
+                    "FATAL: OpenAI API unauthorized (401). Check that OPENAI_API_KEY is valid."
+                )
+                results.append(pred)
+                break
 
         results.append(pred)
 
@@ -469,14 +503,14 @@ def main():
     parser = argparse.ArgumentParser(
         description="FieldProof evaluation harness — reproducible tables for the paper"
     )
-    parser.add_argument("--dataset", default="backend/data/electrical_gold.jsonl",
-                        help="Path to JSONL evaluation dataset")
+    parser.add_argument("--dataset", default="data/electrical_gold.jsonl",
+                        help="Path to JSONL evaluation dataset (relative to backend/ or absolute)")
     parser.add_argument("--prompt-version", default="v1",
                         help="Prompt version to use for LLM extraction")
     parser.add_argument("--model", default=None,
                         help="Override AI_MODEL_CHAT for this run")
-    parser.add_argument("--output-dir", default="backend/eval/results",
-                        help="Directory to write results to")
+    parser.add_argument("--output-dir", default="eval/results",
+                        help="Directory to write results to (relative to backend/ or absolute)")
     parser.add_argument("--config", default=None,
                         help="JSON config file (keys match CLI args)")
     parser.add_argument("--run-id", default=None,
@@ -499,24 +533,34 @@ def main():
         os.environ["AI_MODEL_CHAT"] = args.model
 
     run_id = args.run_id or f"run_{uuid.uuid4().hex[:8]}"
-    output_dir = Path(args.output_dir) / run_id
 
     logger.info("=== FieldProof eval | run_id=%s ===", run_id)
     logger.info("Dataset: %s", args.dataset)
     logger.info("Prompt version: %s", args.prompt_version)
     logger.info("Conditions: %s", args.conditions)
 
-    samples = load_dataset(args.dataset)
+    samples = load_dataset(_resolve(args.dataset))
+    output_dir = Path(_resolve(args.output_dir)) / run_id
 
     # Import services here (after path is set)
     from app.services.llm import extract_fields
 
     def llm_extractor(transcript: str) -> dict:
-        return extract_fields(transcript, trade="electrical", prompt_version=args.prompt_version) or {}
+        return extract_fields(
+            transcript,
+            trade="electrical",
+            prompt_version=args.prompt_version,
+            model=args.model,
+        ) or {}
 
     def llm_no_grounding_extractor(transcript: str) -> dict:
         """LLM without the grounding check — for ablation comparison."""
-        raw = extract_fields(transcript, trade="electrical", prompt_version=args.prompt_version) or {}
+        raw = extract_fields(
+            transcript,
+            trade="electrical",
+            prompt_version=args.prompt_version,
+            model=args.model,
+        ) or {}
         # Strip grounding results to simulate no-grounding baseline
         meta = raw.pop("_meta", None)
         cleaned = {}

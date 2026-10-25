@@ -1,1 +1,1 @@
-{"dataset": "backend/data/electrical_gold.jsonl", "prompt_version": "v1", "output_dir": "backend/eval/results", "conditions": ["llm", "regex", "llm_no_grounding"]}
+{"dataset": "data/electrical_gold.jsonl", "prompt_version": "v1", "output_dir": "eval/results", "conditions": ["llm", "regex", "llm_no_grounding"]}

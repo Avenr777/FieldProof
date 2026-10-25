@@ -3,37 +3,38 @@ AI model layer — Speech, LLM extraction, Vision, OCR, and document fusion.
 
 What is real vs stubbed
 -----------------------
-REAL:
-  transcribe_audio        — OpenAI Whisper via stt.transcribe_file; falls back
-                            to demo string when OPENAI_API_KEY is not set.
-  fuse_into_document      — LLM structured extraction via llm.extract_fields for
-                            the transcript half; returns per-field evidence,
-                            grounding status, and confidence.  Vision/OCR half
-                            remains heuristic until Phase 3 photos/OCR work.
+REAL (when OPENAI_API_KEY is set):
+  transcribe_audio        — OpenAI Whisper via stt.transcribe_file.
+  fuse_into_document      — LLM structured extraction via llm.extract_fields +
+                            cross-modal OCR fusion via vision.fuse_ocr_into_fields.
   run_compliance_check    — deterministic required-field check.
+  analyze_image           — GPT-4o vision (via vision.analyze_image).
+  extract_text_ocr        — GPT-4o OCR (via vision.extract_text_ocr).
 
-STUBBED / FUTURE WORK:
-  analyze_image           — vision-language photo analysis (placeholder).
-  extract_text_ocr        — OCR on meter photos (placeholder).
+FALLBACK (no API key or API error):
+  analyze_image / extract_text_ocr return a placeholder dict with _stub=True.
+  The rest of the pipeline continues to function in demo / offline mode.
 
-All stubs are labelled clearly so the paper's methodology section accurately
-describes what was implemented.
+Cross-modal fusion (fuse_ocr_into_fields)
+  OCR readings corroborate or fill voice-extracted fields:
+    • voltage, rating pulled from meter_display via regex
+    • component filled from serial_number when voice left it null
+    • agreement between voice and OCR bumps confidence to 0.95
+  See app/services/vision.py for the full algorithm.
 """
 
-import base64
-import json
 import logging
-import mimetypes
-import os
-from datetime import datetime
 from typing import Any
 
-import httpx
-
-from app.config import settings
-from app.services import storage
 from app.services.stt import transcribe_file
 from app.services.llm import extract_fields
+from app.services.vision import (
+    analyze_image as _vision_analyze_image,
+    extract_text_ocr as _vision_extract_text_ocr,
+    fuse_ocr_into_fields,
+    ImageAnalysisResult,
+    OcrResult,
+)
 
 logger = logging.getLogger("fieldproof.ai_pipeline")
 
@@ -87,154 +88,42 @@ async def transcribe_audio_rich(file_url: str, trade: str | None = None):
 
 
 # ---------------------------------------------------------------------------
-# Vision analysis (STUBBED — future work)
+# Vision analysis (REAL via vision.py — stub fallback when no API key)
 # ---------------------------------------------------------------------------
 
 async def analyze_image(file_url: str) -> dict[str, Any]:
     """
-    [FUTURE WORK — STUBBED]
-    Vision-language photo analysis is out of scope for the current research
-    phase. Returns heuristic placeholder data so the rest of the pipeline
-    continues to function.
+    Vision-language photo analysis via GPT-4o.
 
-    When implemented, this will use a VLM (e.g. GPT-4o vision) to detect
-    equipment, PPE compliance, warning labels, and safety hazards.
+    When OPENAI_API_KEY is set and the image file exists:
+        Returns real analysis dict with equipment, ppe_detected,
+        warning_label_present, observations.  _stub is absent.
+
+    When the key is absent or the API call fails:
+        Returns a placeholder dict with _stub=True so the pipeline continues
+        in demo / offline mode.  Logged at INFO level.
     """
-    local_path = storage.resolve_local_path(file_url)
-    if settings.openai_api_key and os.path.exists(local_path):
-        try:
-            with open(local_path, "rb") as f:
-                img_b64 = base64.b64encode(f.read()).decode("utf-8")
-            mime_type, _ = mimetypes.guess_type(local_path)
-            data_url = f"data:{mime_type or 'image/jpeg'};base64,{img_b64}"
+    result: ImageAnalysisResult = await _vision_analyze_image(file_url)
+    return result.to_dict()
 
-            prompt = (
-                "You are an industrial safety and equipment inspection AI. "
-                "Analyze this field photo taken by a tradesperson (electrician, HVAC, plumber, etc.). "
-                "Respond in strictly valid JSON with the following structure:\n"
-                "{\n"
-                '  "equipment": "detected equipment type name or null",\n'
-                '  "ppe_detected": true/false,\n'
-                '  "warning_label_present": true/false,\n'
-                '  "observations": ["key observation 1", "key observation 2"]\n'
-                "}"
-            )
-
-            payload = {
-                "model": settings.ai_model_vision,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {"type": "image_url", "image_url": {"url": data_url}},
-                        ],
-                    }
-                ],
-                "response_format": {"type": "json_object"},
-                "max_tokens": 500,
-            }
-
-            async with httpx.AsyncClient(timeout=45.0) as client:
-                headers = {
-                    "Authorization": f"Bearer {settings.openai_api_key}",
-                    "Content-Type": "application/json",
-                }
-                resp = await client.post(
-                    f"{settings.openai_base_url}/chat/completions",
-                    headers=headers,
-                    json=payload,
-                )
-                if resp.is_success:
-                    content = resp.json()["choices"][0]["message"]["content"]
-                    return json.loads(content)
-                else:
-                    logger.warning(f"Vision API returned {resp.status_code}: {resp.text}")
-        except Exception as e:
-            logger.error(f"Error during image analysis: {e}")
-
-    # Heuristic fallback
-    return {
-        "equipment": "Distribution Panel / Breaker",
-        "ppe_detected": True,
-        "warning_label_present": True,
-        "observations": ["Clear clearance around enclosure", "Grounded enclosure verified"],
-        "_stub": True,
-    }
-
-
-# ---------------------------------------------------------------------------
-# OCR extraction (STUBBED — future work)
-# ---------------------------------------------------------------------------
 
 async def extract_text_ocr(file_url: str) -> dict[str, Any]:
     """
-    [FUTURE WORK — STUBBED]
-    OCR fusion with the voice transcript is out of scope for the current
-    research phase. Returns heuristic placeholder data.
+    OCR extraction from meter displays and serial plates via GPT-4o.
+
+    When OPENAI_API_KEY is set and the image file exists:
+        Returns real OCR dict with meter_display, serial_number,
+        manufacturer, raw_text.  _stub is absent.
+
+    When the key is absent or the API call fails:
+        Returns a placeholder dict with _stub=True.
     """
-    local_path = storage.resolve_local_path(file_url)
-    if settings.openai_api_key and os.path.exists(local_path):
-        try:
-            with open(local_path, "rb") as f:
-                img_b64 = base64.b64encode(f.read()).decode("utf-8")
-            mime_type, _ = mimetypes.guess_type(local_path)
-            data_url = f"data:{mime_type or 'image/jpeg'};base64,{img_b64}"
-
-            prompt = (
-                "You are an OCR tool extracting text from field equipment, gauge dials, digital meters, and serial plates. "
-                "Extract all numbers, readings, and labels. "
-                "Respond in strictly valid JSON with:\n"
-                "{\n"
-                '  "meter_display": "extracted reading with units or null",\n'
-                '  "serial_number": "detected serial/model number or null",\n'
-                '  "manufacturer": "manufacturer brand or null",\n'
-                '  "raw_text": ["text snippet 1", "text snippet 2"]\n'
-                "}"
-            )
-
-            payload = {
-                "model": settings.ai_model_vision,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {"type": "image_url", "image_url": {"url": data_url}},
-                        ],
-                    }
-                ],
-                "response_format": {"type": "json_object"},
-                "max_tokens": 500,
-            }
-
-            async with httpx.AsyncClient(timeout=45.0) as client:
-                headers = {
-                    "Authorization": f"Bearer {settings.openai_api_key}",
-                    "Content-Type": "application/json",
-                }
-                resp = await client.post(
-                    f"{settings.openai_base_url}/chat/completions",
-                    headers=headers,
-                    json=payload,
-                )
-                if resp.is_success:
-                    content = resp.json()["choices"][0]["message"]["content"]
-                    return json.loads(content)
-        except Exception as e:
-            logger.error(f"Error during OCR extraction: {e}")
-
-    return {
-        "meter_display": "240.2 V",
-        "serial_number": "SN-8492-FP",
-        "manufacturer": "Schneider Electric",
-        "raw_text": ["240.2 V", "60 Hz", "CAT III"],
-        "_stub": True,
-    }
+    result: OcrResult = await _vision_extract_text_ocr(file_url)
+    return result.to_dict()
 
 
 # ---------------------------------------------------------------------------
-# Document fusion (REAL transcript half, stubbed vision/OCR half)
+# Document fusion (REAL — voice + OCR cross-modal)
 # ---------------------------------------------------------------------------
 
 async def fuse_into_document(
@@ -245,16 +134,23 @@ async def fuse_into_document(
     trade: str = "electrical",
 ) -> tuple[list[dict[str, Any]], float, dict | None]:
     """
-    Merges transcript (via LLM extraction) and job metadata into a structured
-    field list with per-field confidence, evidence, grounded flag, and status.
+    Merges transcript (via LLM extraction), OCR readings, and job metadata
+    into a structured field list with per-field confidence, evidence,
+    grounded flag, and status.
 
-    Returns:
-        fields          — list of field dicts ready for Document.extracted_fields
-        overall_conf    — mean confidence across non-null fields
-        llm_meta        — LLM call metadata dict (or None for demo fallback)
+    Cross-modal fusion (new)
+    ------------------------
+    After LLM extraction, fuse_ocr_into_fields() is called to:
+      • Corroborate voltage / rating fields: if OCR agrees with voice,
+        confidence is bumped and ocr_corroborated=True is set.
+      • Fill null or ungrounded fields from meter_display / serial_number.
+      • Append remaining OCR tokens as an "OCR Readings" field.
 
-    The vision/OCR halves remain heuristic stubs (see analyze_image /
-    extract_text_ocr docstrings) and are labelled future work.
+    Returns
+    -------
+    fields          — list of field dicts for Document.extracted_fields
+    overall_conf    — mean confidence across non-null fields
+    llm_meta        — LLM call metadata dict (or None for demo fallback)
     """
     llm_meta = None
     fields = []
@@ -296,7 +192,6 @@ async def fuse_into_document(
                 grounded = fv.get("grounded")
                 status = fv.get("status", "missing" if value is None else "ok")
 
-                # Convert snake_case field name to title for display
                 label = field_name.replace("_", " ").title()
                 conf_pct = round((confidence or 0.0) * 100, 1) if confidence is not None else 85.0
 
@@ -326,49 +221,42 @@ async def fuse_into_document(
                 "status": "ok",
             })
 
-    # Heuristic vision/OCR fields (STUBBED)
-    equipment_val = "Main Service Panel"
-    for v in vision_results:
-        if v.get("equipment") and not v.get("_stub"):
-            equipment_val = v["equipment"]
-            break
-    for v in vision_results:
-        if v.get("equipment"):
-            equipment_val = v["equipment"]
-            break
-
-    meter_val = None
-    serial_val = None
-    for o in ocr_results:
-        if o.get("meter_display"):
-            meter_val = o["meter_display"]
-        if o.get("serial_number"):
-            serial_val = o["serial_number"]
-
+    # Vision fields (equipment, PPE status)
     vision_stub = all(v.get("_stub") for v in vision_results) if vision_results else True
-    ocr_stub = all(o.get("_stub") for o in ocr_results) if ocr_results else True
-
     if vision_results:
+        equipment_val = None
+        for v in vision_results:
+            if v.get("equipment"):
+                equipment_val = v["equipment"]
+                break
+        if equipment_val is None:
+            equipment_val = "Main Service Panel"
+
+        ppe_vals = [v.get("ppe_detected") for v in vision_results if "ppe_detected" in v]
+        ppe_status = "PPE present" if any(ppe_vals) else "PPE not confirmed"
+
         fields.append({
             "field": "Equipment",
             "value": equipment_val,
-            "source": "Image (stub)" if vision_stub else "Image",
-            "confidence": 60.0 if vision_stub else 94.0,
+            "source": "Image" if not vision_stub else "Image (stub)",
+            "confidence": 94.0 if not vision_stub else 60.0,
+            "evidence": None,
+            "grounded": None,
+            "status": "ok",
+        })
+        fields.append({
+            "field": "PPE Status",
+            "value": ppe_status,
+            "source": "Image" if not vision_stub else "Image (stub)",
+            "confidence": 90.0 if not vision_stub else 60.0,
             "evidence": None,
             "grounded": None,
             "status": "ok",
         })
 
+    # OCR fields — raw reading appended; cross-modal fusion updates voice fields
     if ocr_results:
-        fields.append({
-            "field": "Reading / Measurement",
-            "value": meter_val or "N/A",
-            "source": "OCR (stub)" if ocr_stub else "OCR (meter)",
-            "confidence": 60.0 if ocr_stub else 92.0,
-            "evidence": None,
-            "grounded": None,
-            "status": "ok" if meter_val else "missing",
-        })
+        fields = fuse_ocr_into_fields(fields, ocr_results)
 
     non_null = [f for f in fields if f.get("value") is not None]
     overall = round(
@@ -388,7 +276,7 @@ async def run_compliance_check(
     required_fields: list[str],
 ) -> list[str]:
     """
-    Returns required field names that are missing, null, or invalid.
+    Returns required field names that are missing, null, or ungrounded.
 
     A field is considered present when:
     - its status is 'ok' (grounded and non-null), AND
@@ -397,7 +285,6 @@ async def run_compliance_check(
     Fields that are 'ungrounded' are NOT treated as present — they are
     forced into review even if they have a value.
     """
-    # Build a set of "trusted present" field names
     present: set[str] = set()
     for f in extracted_fields:
         if not isinstance(f, dict):
@@ -410,7 +297,6 @@ async def run_compliance_check(
     missing = []
     for rf in required_fields:
         rf_clean = rf.strip().lower()
-        # Allow partial/fuzzy match (e.g. "Voltage" in "Voltage Reading")
         if not any(rf_clean in p or p in rf_clean for p in present):
             missing.append(rf)
 

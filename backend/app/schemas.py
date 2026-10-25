@@ -311,6 +311,18 @@ class DocumentReviewAction(BaseModel):
     comment: Optional[str] = None
 
 
+class DocumentFieldEdit(BaseModel):
+    """A single field correction made by a human reviewer."""
+    field: str
+    new_value: Optional[str] = None   # None = reviewer explicitly cleared the field
+
+
+class DocumentFieldPatch(BaseModel):
+    """Body for PATCH /documents/{id}/fields."""
+    edits: list[DocumentFieldEdit]
+    comment: Optional[str] = None     # free-text reason for the edits (logged)
+
+
 class DocumentReviewEventOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
