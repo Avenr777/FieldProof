@@ -8,9 +8,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Platform } from "react-native";
-import { colors, gradients } from "../../constants/theme";
+import { colors, gradients, shadows, radius, spacing } from "../../constants/theme";
 import { uploadCapture, type LocalCaptureFile } from "../../services/capture";
-import { startCaptureSession, type CaptureSession } from "../../services/templates";
+import { startCaptureSession, type CaptureSession, type RequiredProofType } from "../../services/templates";
 import { useAuth } from "../../hooks/useAuth";
 import { formatDuration } from "../../utils/format";
 import { PrimaryButton } from "../components/PrimaryButton";
@@ -19,6 +19,13 @@ import type { RootStackParamList } from "../navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Capture">;
 type Photo = LocalCaptureFile;
+
+const PROOF_TYPE_LABEL: Record<RequiredProofType, string> = {
+  photo: "Photos",
+  voice: "Voice note",
+  form_fill: "Complete form",
+  text_note: "Text note"
+};
 
 function tap() {
   if (Platform.OS !== "web") {
@@ -134,6 +141,16 @@ export function CaptureScreen({ route, navigation }: Props) {
       setUploadStatus("Nothing to upload — record a voice note or add at least one photo first.");
       return;
     }
+    const requiredProofTypes = session.required_proof_types || [];
+    const minPhotos = requiredProofTypes.includes("photo") ? Math.max(session.min_photos || 1, 1) : 0;
+    if (photos.length < minPhotos) {
+      setUploadStatus(`This assignment requires at least ${minPhotos} photo${minPhotos === 1 ? "" : "s"}. Add ${minPhotos - photos.length} more before submitting.`);
+      return;
+    }
+    if ((session.require_voice || requiredProofTypes.includes("voice")) && !audio) {
+      setUploadStatus("This assignment requires a voice note. Record one before submitting.");
+      return;
+    }
     uploadRef.current = true;
     setUploading(true);
     setUploadStatus(`Uploading 1 of ${queue.length} · 0%`);
@@ -197,6 +214,25 @@ export function CaptureScreen({ route, navigation }: Props) {
           <View style={styles.sessionErrorRow}>
             <Ionicons name="alert-circle" size={13} color={colors.danger} />
             <Text style={styles.sessionErrorText}>{sessionError}</Text>
+          </View>
+        )}
+        {session && (
+          <View style={styles.assignmentRequirements}>
+            <Text style={styles.requirementsHeading}>ASSIGNMENT REQUIREMENTS</Text>
+            <Text style={styles.requirementsText}>
+              Required: {(session.required_proof_types || []).map((proof) => (
+                proof === "photo" && session.min_photos > 1
+                  ? `${PROOF_TYPE_LABEL[proof]} (minimum ${session.min_photos})`
+                  : PROOF_TYPE_LABEL[proof]
+              )).join(", ") || "No specific capture type"}
+              {session.require_voice && !(session.required_proof_types || []).includes("voice") ? ", Voice note" : ""}
+            </Text>
+            {session.technician_instructions ? (
+              <Text style={styles.requirementsText}>Instructions: {session.technician_instructions}</Text>
+            ) : null}
+            {session.notes ? (
+              <Text style={styles.requirementsText}>Notes: {session.notes}</Text>
+            ) : null}
           </View>
         )}
       </LinearGradient>
@@ -443,20 +479,22 @@ const styles = StyleSheet.create({
     backgroundColor: colors.black
   },
   jobCard: {
-    padding: 18,
-    borderRadius: 18,
+    padding: spacing.xl,
+    borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.darkBorder,
-    gap: 6
+    borderColor: colors.glassBorder,
+    gap: spacing.sm,
+    ...shadows.card
   },
   jobBadge: {
     alignSelf: "flex-start",
     backgroundColor: colors.orangeLight,
     borderWidth: 1,
     borderColor: colors.orangeBorder,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 1,
+    borderRadius: radius.sm,
+    ...shadows.softGlow
   },
   jobBadgeText: {
     color: colors.orangeBright,
@@ -468,7 +506,8 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 22,
     fontWeight: "900",
-    letterSpacing: -0.4
+    letterSpacing: -0.4,
+    lineHeight: 26
   },
   jobAddressWrap: {
     flexDirection: "row",
@@ -480,6 +519,25 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     flex: 1
+  },
+  assignmentRequirements: {
+    gap: 5,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    backgroundColor: colors.amberLight,
+    borderWidth: 1,
+    borderColor: colors.warningBorder
+  },
+  requirementsHeading: {
+    color: colors.amber,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.7
+  },
+  requirementsText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 17
   },
   sessionErrorRow: {
     flexDirection: "row",
@@ -501,12 +559,13 @@ const styles = StyleSheet.create({
   textFillBanner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    padding: 14,
-    borderRadius: 16,
-    backgroundColor: colors.orangeLight,
+    gap: spacing.md,
+    padding: spacing.lg,
+    borderRadius: radius.lg,
+    backgroundColor: colors.glass,
     borderWidth: 1,
-    borderColor: colors.orangeBorder
+    borderColor: colors.orangeBorder,
+    ...shadows.softGlow
   },
   textFillIconBox: {
     width: 38,
@@ -531,12 +590,13 @@ const styles = StyleSheet.create({
     lineHeight: 17
   },
   section: {
-    backgroundColor: colors.darkSurface,
+    backgroundColor: colors.glass,
     borderWidth: 1,
-    borderColor: colors.darkBorder,
-    borderRadius: 18,
-    padding: 18,
-    gap: 14
+    borderColor: colors.glassBorder,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    gap: spacing.lg,
+    ...shadows.card
   },
   sectionHeaderRow: {
     flexDirection: "row",
@@ -544,14 +604,15 @@ const styles = StyleSheet.create({
     alignItems: "flex-start"
   },
   sectionIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 11,
     backgroundColor: colors.orangeLight,
     borderWidth: 1,
     borderColor: colors.orangeBorder,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
+    ...shadows.softGlow
   },
   sectionTitleBlock: {
     flex: 1,
@@ -615,11 +676,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: colors.darkElevated,
-    padding: 12,
-    borderRadius: 12,
+    backgroundColor: colors.glass,
+    padding: spacing.lg,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.darkBorder
+    borderColor: colors.glassBorder,
+    ...shadows.softGlow
   },
   audioMeta: {
     flexDirection: "row",
@@ -668,12 +730,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: spacing.sm,
     borderWidth: 1.5,
-    borderColor: colors.darkBorder,
-    borderRadius: 12,
-    paddingVertical: 12,
-    backgroundColor: colors.darkElevated
+    borderColor: colors.glassBorder,
+    borderRadius: radius.md,
+    paddingVertical: spacing.xl,
+    backgroundColor: colors.glass,
+    ...shadows.card
   },
   actionPressed: {
     backgroundColor: colors.orangeLight,
@@ -693,15 +756,17 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     position: "relative",
-    borderRadius: 12,
-    overflow: "visible"
+    borderRadius: radius.md,
+    overflow: "visible",
+    borderWidth: 1,
+    borderColor: colors.glassBorder,
+    backgroundColor: colors.glass,
+    ...shadows.softGlow
   },
   image: {
     width: "100%",
     height: "100%",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.darkBorder
+    borderRadius: radius.md
   },
   remove: {
     position: "absolute",
@@ -797,7 +862,8 @@ const styles = StyleSheet.create({
     borderRadius: 36,
     padding: 5,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
+    ...shadows.orangeGlow
   },
   shutterInner: {
     width: 52,

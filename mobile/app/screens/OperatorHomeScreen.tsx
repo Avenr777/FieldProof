@@ -26,7 +26,7 @@ import {
 } from "../../services/console";
 import { ApiError } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
-import { colors } from "../../constants/theme";
+import { colors, shadows, radius, spacing } from "../../constants/theme";
 
 const STATUS_DOT: Record<string, string> = {
   "On Site": colors.success,
@@ -316,19 +316,20 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, gap: 12, backgroundColor: colors.black },
   loadingText: { color: colors.muted, fontSize: 14, fontWeight: "600" },
   welcome: {
-    backgroundColor: colors.darkSurface,
-    paddingTop: 18,
-    paddingHorizontal: 20,
-    paddingBottom: 22,
+    backgroundColor: colors.glass,
+    paddingTop: spacing.xl,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xxl,
     borderBottomWidth: 1,
-    borderBottomColor: colors.darkBorder,
-    borderBottomLeftRadius: 26,
-    borderBottomRightRadius: 26,
-    gap: 16
+    borderBottomColor: colors.glassBorder,
+    borderBottomLeftRadius: radius.xxl,
+    borderBottomRightRadius: radius.xxl,
+    gap: spacing.lg,
+    ...shadows.card
   },
   topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   brandGroup: { flexDirection: "row", alignItems: "center", gap: 12 },
-  logoBadge: { width: 36, height: 36, borderRadius: 10, backgroundColor: colors.orange, justifyContent: "center", alignItems: "center" },
+  logoBadge: { width: 38, height: 38, borderRadius: 11, backgroundColor: colors.orange, justifyContent: "center", alignItems: "center", ...shadows.orangeGlow },
   logoText: { color: "#FFFFFF", fontSize: 13, fontWeight: "900" },
   brandTitle: { color: "#FFFFFF", fontSize: 14, letterSpacing: 1.6, fontWeight: "900" },
   statusChip: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
@@ -348,16 +349,18 @@ const styles = StyleSheet.create({
   listContent: { padding: 16, paddingBottom: 40, gap: 10 },
   summaryGrid: { flexDirection: "row", gap: 8 },
   summaryCard: {
-    flex: 1, backgroundColor: colors.darkSurface, borderWidth: 1, borderColor: colors.darkBorder,
-    borderRadius: 14, padding: 10, gap: 2, alignItems: "flex-start"
+    flex: 1, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.glassBorder,
+    borderRadius: radius.lg, padding: spacing.md, gap: spacing.xs, alignItems: "flex-start",
+    ...shadows.card
   },
   summaryValue: { color: colors.text, fontSize: 17, fontWeight: "900" },
   summaryLabel: { color: colors.muted, fontSize: 10, fontWeight: "700" },
   sectionTitle: { color: colors.text, fontSize: 15, fontWeight: "800", marginTop: 8 },
   techCard: {
-    flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: colors.darkSurface,
-    borderWidth: 1, borderColor: colors.darkBorder, borderLeftWidth: 3, borderLeftColor: colors.orange,
-    borderRadius: 14, padding: 12
+    flexDirection: "row", alignItems: "center", gap: spacing.lg, backgroundColor: colors.glass,
+    borderWidth: 1, borderColor: colors.glassBorder, borderLeftWidth: 3, borderLeftColor: colors.orange,
+    borderRadius: radius.lg, padding: spacing.lg,
+    ...shadows.card
   },
   cardPressed: { opacity: 0.8, transform: [{ scale: 0.985 }] },
   techAvatar: {
@@ -376,12 +379,14 @@ const styles = StyleSheet.create({
   },
   emptyLine: { color: colors.muted, fontSize: 13, textAlign: "center", paddingVertical: 8 },
   docRow: {
-    flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.darkSurface,
-    borderWidth: 1, borderColor: colors.darkBorder, borderRadius: 12, padding: 10
+    flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.glass,
+    borderWidth: 1, borderColor: colors.glassBorder, borderRadius: radius.md, padding: spacing.md,
+    ...shadows.card
   },
   docIcon: {
-    width: 30, height: 30, borderRadius: 9, backgroundColor: colors.orangeLight,
-    justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: colors.orangeBorder
+    width: 32, height: 32, borderRadius: 10, backgroundColor: colors.orangeLight,
+    justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: colors.orangeBorder,
+    ...shadows.softGlow
   },
   docMeta: { flex: 1, gap: 1 },
   docName: { color: colors.text, fontSize: 13, fontWeight: "700" },
@@ -415,12 +420,14 @@ const styles = StyleSheet.create({
   templateChipText: { color: colors.orangeBright, fontSize: 11, fontWeight: "700" },
   modalSection: { color: colors.text, fontSize: 14, fontWeight: "800", marginTop: 10 },
   captureRow: {
-    flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.darkSurface,
-    borderWidth: 1, borderColor: colors.darkBorder, borderRadius: 12, padding: 10
+    flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.glass,
+    borderWidth: 1, borderColor: colors.glassBorder, borderRadius: radius.md, padding: spacing.md,
+    ...shadows.card
   },
   captureIcon: {
-    width: 30, height: 30, borderRadius: 9, backgroundColor: colors.orangeLight,
-    justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: colors.orangeBorder
+    width: 32, height: 32, borderRadius: 10, backgroundColor: colors.orangeLight,
+    justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: colors.orangeBorder,
+    ...shadows.softGlow
   },
   captureMeta: { flex: 1, gap: 1 },
   captureTitle: { color: colors.text, fontSize: 13, fontWeight: "700" },

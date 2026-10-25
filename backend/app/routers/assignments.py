@@ -27,6 +27,10 @@ def _serialize_assignment(asn: models.TemplateAssignment) -> schemas.AssignmentO
         end_date=asn.end_date,
         status=asn.status or "active",
         notes=asn.notes,
+        required_proof_types=asn.required_proof_types,
+        min_photos=asn.min_photos,
+        require_voice=asn.require_voice,
+        technician_instructions=asn.technician_instructions,
         assigned_at=asn.assigned_at or datetime.utcnow(),
     )
 
@@ -117,6 +121,14 @@ def create_assignments(
                 existing.end_date = payload.end_date
                 existing.status = "active"
                 existing.notes = payload.notes
+                existing.required_proof_types = (
+                    payload.required_proof_types
+                    if payload.required_proof_types is not None
+                    else ["photo", "voice"]
+                )
+                existing.min_photos = payload.min_photos if payload.min_photos is not None else 1
+                existing.require_voice = payload.require_voice if payload.require_voice is not None else False
+                existing.technician_instructions = payload.technician_instructions
                 existing.assigned_at = datetime.utcnow()
                 asn = existing
             else:
@@ -131,6 +143,14 @@ def create_assignments(
                     end_date=payload.end_date,
                     status="active",
                     notes=payload.notes,
+                    required_proof_types=(
+                        payload.required_proof_types
+                        if payload.required_proof_types is not None
+                        else ["photo", "voice"]
+                    ),
+                    min_photos=payload.min_photos if payload.min_photos is not None else 1,
+                    require_voice=payload.require_voice if payload.require_voice is not None else False,
+                    technician_instructions=payload.technician_instructions,
                     assigned_at=datetime.utcnow(),
                 )
                 db.add(asn)
@@ -184,6 +204,14 @@ def update_assignment(
         asn.status = payload.status
     if payload.notes is not None:
         asn.notes = payload.notes
+    if payload.required_proof_types is not None:
+        asn.required_proof_types = payload.required_proof_types
+    if payload.min_photos is not None:
+        asn.min_photos = payload.min_photos
+    if payload.require_voice is not None:
+        asn.require_voice = payload.require_voice
+    if payload.technician_instructions is not None:
+        asn.technician_instructions = payload.technician_instructions
 
     db.commit()
     db.refresh(asn)

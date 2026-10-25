@@ -6,6 +6,8 @@ export type TemplateFieldMapping = {
   confidence: number;
 };
 
+export type RequiredProofType = "photo" | "voice" | "form_fill" | "text_note";
+
 export type Template = {
   id: string;
   name: string;
@@ -21,6 +23,10 @@ export type Template = {
   frequency_details?: Record<string, any> | null;
   due_date?: string | null;
   notes?: string | null;
+  required_proof_types?: RequiredProofType[] | null;
+  min_photos?: number | null;
+  require_voice?: boolean | null;
+  technician_instructions?: string | null;
 };
 
 export type CaptureSession = {
@@ -28,6 +34,11 @@ export type CaptureSession = {
   template_id: string | null;
   template_name: string | null;
   technician_id: string | null;
+  required_proof_types: RequiredProofType[];
+  min_photos: number;
+  require_voice: boolean;
+  technician_instructions: string | null;
+  notes: string | null;
 };
 
 export function getMyTemplates(): Promise<Template[]> {

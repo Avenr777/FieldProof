@@ -4,7 +4,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-nat
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { getJob, type Job } from "../../services/jobs";
-import { colors, gradients } from "../../constants/theme";
+import { colors, gradients, shadows, radius, spacing } from "../../constants/theme";
 import { formatDate } from "../../utils/format";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { Screen } from "../components/Screen";
@@ -153,11 +153,12 @@ const styles = StyleSheet.create({
     fontWeight: "600"
   },
   heroCard: {
-    borderRadius: 20,
+    borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.darkBorder,
-    padding: 20,
-    gap: 12
+    borderColor: colors.glassBorder,
+    padding: spacing.xl,
+    gap: spacing.lg,
+    ...shadows.card
   },
   topMeta: {
     flexDirection: "row",
@@ -179,7 +180,8 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 26,
     fontWeight: "900",
-    letterSpacing: -0.5
+    letterSpacing: -0.5,
+    lineHeight: 30
   },
   jobTypeTag: {
     color: colors.orangeBright,
@@ -203,15 +205,16 @@ const styles = StyleSheet.create({
     gap: 12
   },
   detailIconBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 11,
     backgroundColor: colors.orangeLight,
     borderWidth: 1,
     borderColor: colors.orangeBorder,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 2
+    marginTop: spacing.xs,
+    ...shadows.softGlow
   },
   detailContent: {
     flex: 1,
@@ -230,12 +233,13 @@ const styles = StyleSheet.create({
     lineHeight: 22
   },
   captureBanner: {
-    backgroundColor: colors.darkSurface,
-    borderRadius: 20,
+    backgroundColor: colors.glass,
+    borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.darkBorder,
-    padding: 20,
-    gap: 18
+    borderColor: colors.glassBorder,
+    padding: spacing.xl,
+    gap: spacing.lg,
+    ...shadows.card
   },
   captureHeader: {
     flexDirection: "row",
@@ -247,14 +251,15 @@ const styles = StyleSheet.create({
     gap: 6
   },
   captureIconCircle: {
-    width: 38,
-    height: 38,
+    width: 40,
+    height: 40,
     borderRadius: 12,
     backgroundColor: colors.orangeLight,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: colors.orangeBorder
+    borderColor: colors.orangeBorder,
+    ...shadows.softGlow
   },
   captureTextGroup: {
     flex: 1,

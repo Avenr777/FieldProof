@@ -19,3 +19,7 @@ __pycache__/
 *.pyc
 .freebuff/
 backend/uploads/
+
+.backend.log
+.frontend.log
+backend/fieldproof.db

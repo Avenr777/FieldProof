@@ -2499,7 +2499,7 @@ function TemplatesView({ templates, jobs, technicians = [], currentUser, onTempl
    DASHBOARD — DOCUMENTS
    ====================================================================== */
 
-function DocumentsView({ documents, jobs, complianceEvents = [], onDocumentsChanged, loading, error, onRetry }) {
+function DocumentsView({ documents, jobs, complianceEvents = [], captureSubmissions = [], captureSubmissionsLoading, captureSubmissionsError, onRetryCaptureSubmissions, onDocumentsChanged, loading, error, onRetry, onReviewSubmission }) {
   const [reviewing, setReviewing] = useState(null);
   const [tab, setTab] = useState("All");
   const [reviewTab, setReviewTab] = useState("fields"); // "fields" | "history"
@@ -2601,6 +2601,51 @@ function DocumentsView({ documents, jobs, complianceEvents = [], onDocumentsChan
         </div>
       </div>
 
+      <Card className="overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-stone-100">
+          <div>
+            <h2 className="text-sm font-semibold text-stone-800">Technician submissions awaiting documents</h2>
+            <p className="text-xs text-stone-500 mt-1">Review uploaded field evidence and complete the assigned document.</p>
+          </div>
+          {captureSubmissions.length > 0 && (
+            <span className="text-xs font-semibold text-orange-700 bg-orange-50 border border-orange-200 rounded-full px-3 py-1">
+              {captureSubmissions.length} awaiting
+            </span>
+          )}
+        </div>
+        {captureSubmissionsError ? (
+          <div className="px-6 py-4 flex items-center justify-between gap-3">
+            <p className="text-sm text-red-700">{captureSubmissionsError}</p>
+            <button onClick={onRetryCaptureSubmissions} className="text-xs font-semibold text-stone-700 border border-stone-200 rounded-full px-3 py-1.5">Retry</button>
+          </div>
+        ) : captureSubmissionsLoading && captureSubmissions.length === 0 ? (
+          <p className="px-6 py-5 text-sm text-stone-400">Loading technician submissions...</p>
+        ) : captureSubmissions.length === 0 ? (
+          <p className="px-6 py-5 text-sm text-stone-400">No technician submissions are waiting for a document.</p>
+        ) : (
+          <div className="divide-y divide-stone-100">
+            {captureSubmissions.map((submission) => (
+              <div key={submission.job_id} className="flex flex-wrap items-center justify-between gap-4 px-6 py-4">
+                <div>
+                  <p className="text-sm font-medium text-stone-800">{submission.customer} · {submission.job_type}</p>
+                  <p className="text-xs text-stone-500 mt-1">
+                    {submission.technician_name || "Technician"} · {submission.capture_count} upload{submission.capture_count === 1 ? "" : "s"}
+                    {" · "}{submission.processed_capture_count}/{submission.capture_count} processed
+                    {submission.latest_capture_at ? ` · ${relativeTime(submission.latest_capture_at)}` : ""}
+                  </p>
+                </div>
+                <button
+                  onClick={() => onReviewSubmission(submission.job_id)}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-orange-600 rounded-full px-4 py-2 hover:bg-orange-700"
+                >
+                  Review &amp; complete document
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex gap-2">
           {tabs.map((t) => (
@@ -2642,13 +2687,22 @@ function DocumentsView({ documents, jobs, complianceEvents = [], onDocumentsChan
                     <tr key={d.id} className="border-b border-stone-50 last:border-0 hover:bg-stone-50">
                       <td className="px-6 py-4">
                         <p className="font-medium text-stone-800">{d.name}</p>
-                        <p className="text-xs text-stone-400">{d.job_id}</p>
+                        <p className="text-xs text-stone-400">{d.job_id}{job?.technician_id ? " · capture session" : ""}</p>
                       </td>
                       <td className="px-6 py-4 text-stone-600">{job ? job.customer : "—"}</td>
                       <td className="px-6 py-4"><ConfidenceBar value={d.overall_confidence} /></td>
                       <td className="px-6 py-4"><StatusPill label={d.status} /></td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-end gap-2">
+                          {onReviewSubmission && job?.technician_id && (
+                            <button
+                              onClick={() => onReviewSubmission(d.job_id)}
+                              className="text-xs font-semibold text-orange-700 bg-orange-50 border border-orange-200 rounded-full px-3 py-1.5 hover:bg-orange-100"
+                              title="Open the technician's raw submission (photos, voice notes, AI evidence) and auto-fill the form"
+                            >
+                              Review submission
+                            </button>
+                          )}
                           <button onClick={() => setReviewing(d)} className="text-xs font-semibold text-stone-700 border border-stone-200 rounded-full px-3 py-1.5">Review</button>
                           {d.file_url && (
                             <a href={`${api.API_BASE_URL}${d.file_url}`} target="_blank" rel="noreferrer" className="p-2 rounded-lg hover:bg-stone-100">
@@ -2834,10 +2888,364 @@ function DocumentsView({ documents, jobs, complianceEvents = [], onDocumentsChan
 
 
 /* ======================================================================
+   DASHBOARD — REVIEW SUBMISSION (admin verifies a capture session)
+   ====================================================================== */
+
+const SUGGESTION_SOURCE_TONE = {
+  "Job record": "bg-blue-50 text-blue-700 border-blue-200",
+  "Capture date": "bg-blue-50 text-blue-700 border-blue-200",
+  "Meter OCR": "bg-purple-50 text-purple-700 border-purple-200",
+  "Gauge OCR": "bg-purple-50 text-purple-700 border-purple-200",
+  "Label OCR": "bg-purple-50 text-purple-700 border-purple-200",
+  "Photo AI": "bg-emerald-50 text-emerald-700 border-emerald-200",
+  "Voice note transcript": "bg-orange-50 text-orange-700 border-orange-200",
+};
+
+function SuggestionTag({ source, confidence }) {
+  const tone = SUGGESTION_SOURCE_TONE[source] || "bg-stone-100 text-stone-600 border-stone-200";
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${tone}`}>
+      <Sparkles className="h-2.5 w-2.5" /> {source || "AI"} · {typeof confidence === "number" ? confidence.toFixed(0) : "?"}%
+    </span>
+  );
+}
+
+/**
+ * Full-submission review screen: opens for one technician capture session
+ * (job). Shows the RAW evidence the technician uploaded (photos with AI
+ * vision/OCR results, voice notes with transcripts, compliance flags),
+ * then auto-fills the assigned template from that evidence so the admin
+ * only verifies/edits and clicks Create & Review once.
+ */
+function ReviewSubmissionView({ jobId, onBack, onDocumentCreated }) {
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // values keyed by field_id: {value, source, confidence, auto:boolean}
+  const [values, setValues] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+  const [createdDoc, setCreatedDoc] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    api.getReviewSession(jobId)
+      .then((d) => {
+        if (cancelled) return;
+        setSession(d);
+        // Seed the editable form with the backend's suggestions.
+        const seeded = {};
+        for (const [fid, s] of Object.entries(d.suggestions || {})) {
+          seeded[fid] = { value: s.value, source: s.source, confidence: s.confidence, auto: true };
+        }
+        setValues(seeded);
+      })
+      .catch((err) => { if (!cancelled) setError(err.message || "Could not load submission"); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [jobId]);
+
+  function setValue(fid, field, value) {
+    setValues((v) => ({ ...v, [fid]: { ...v[fid], value, auto: false } }));
+  }
+
+  async function submit() {
+    if (!session?.template) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      // Only send values actually filled (skip blanks).
+      const payload = {};
+      for (const [fid, entry] of Object.entries(values)) {
+        if (entry?.value !== "" && entry?.value != null) payload[fid] = entry.value;
+      }
+      const doc = await api.fillTemplate(session.template.id, session.job.id, payload);
+      setCreatedDoc(doc);
+      onDocumentCreated?.();
+    } catch (err) {
+      setSaveError(err.message || "Could not create the document");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <Spinner label="Loading submission evidence..." />;
+  if (error) return (
+    <div className="space-y-4">
+      <button onClick={onBack} className="text-xs font-semibold text-stone-600 hover:text-stone-900 inline-flex items-center gap-1"><ArrowRight className="h-3.5 w-3.5 rotate-180" /> Back</button>
+      <ErrorBanner message={error} onRetry={onBack} />
+    </div>
+  );
+
+  const { job, technician, template, captures, compliance_flags = [], documents = [] } = session;
+  const fields = template?.fields || [];
+  const stats = session.suggestion_stats || { total_fields: fields.length, suggested: 0, blank: fields.length };
+  const suggestedPct = stats.total_fields ? Math.round((stats.suggested / stats.total_fields) * 100) : 0;
+  const filledCount = Object.values(values).filter((v) => v?.value !== "" && v?.value != null).length;
+  const blockingFlags = compliance_flags.filter((f) => f.severity === "High");
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <button onClick={onBack} className="mt-1 p-2 rounded-xl bg-white border border-stone-200 hover:bg-stone-50" title="Back to documents">
+            <ArrowRight className="h-4 w-4 rotate-180 text-stone-600" />
+          </button>
+          <div>
+            <h1 className="fs-display text-2xl font-semibold text-stone-900">Review submission</h1>
+            <p className="text-sm text-stone-500 mt-1">
+              {job.customer} · {job.job_type} · <span className="fs-mono text-xs">{job.id}</span>
+              {technician && <> · Technician <span className="font-semibold text-stone-700">{technician.name}</span></>}
+            </p>
+          </div>
+        </div>
+        <StatusPill label={job.status} />
+      </div>
+
+      {job.notes && (
+        <Card className="p-4">
+          <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1">Field notes from technician</p>
+          <p className="text-sm text-stone-700">{job.notes}</p>
+        </Card>
+      )}
+
+      {compliance_flags.length > 0 && (
+        <Card className={`p-4 ${blockingFlags.length ? "border-red-200 bg-red-50/40" : "border-amber-200 bg-amber-50/40"}`}>
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className={`h-4 w-4 ${blockingFlags.length ? "text-red-600" : "text-amber-600"}`} />
+            <p className={`text-sm font-semibold ${blockingFlags.length ? "text-red-800" : "text-amber-800"}`}>
+              Compliance alerts ({compliance_flags.length})
+            </p>
+          </div>
+          <ul className="space-y-1">
+            {compliance_flags.map((f) => (
+              <li key={f.id} className="flex items-center gap-2 text-xs text-stone-700">
+                <SeverityTag level={f.severity} /> {f.message}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {/* Evidence + form split */}
+      <div className="grid lg:grid-cols-12 gap-6">
+        {/* LEFT: raw evidence */}
+        <div className="lg:col-span-5 space-y-6">
+          <Card className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm font-semibold text-stone-800">Technician evidence</p>
+              <span className="text-xs text-stone-400">{captures.length} upload{captures.length === 1 ? "" : "s"}</span>
+            </div>
+            {captures.length === 0 ? (
+              <p className="text-sm text-stone-400">No voice notes or photos were uploaded in this session.</p>
+            ) : (
+              <div className="space-y-3">
+                {captures.map((c) => (
+                  <div key={c.id} className="rounded-xl border border-stone-200 overflow-hidden">
+                    <div className="flex items-center gap-3 px-3.5 py-2.5 bg-stone-50/70">
+                      <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${c.kind === "voice" ? "bg-orange-50 text-orange-600" : "bg-blue-50 text-blue-600"}`}>
+                        {c.kind === "voice" ? <Mic className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-stone-700">{c.kind === "voice" ? "Voice note" : "Photo"}</p>
+                        <p className="text-[11px] text-stone-400">{c.created_at ? relativeTime(c.created_at) : ""}{c.processed ? " · AI processed" : " · queued"}</p>
+                      </div>
+                      <a href={`${api.API_BASE_URL}${c.file_url}`} target="_blank" rel="noreferrer" className="p-1.5 rounded-lg hover:bg-stone-100" title={c.kind === "voice" ? "Play voice note" : "Open photo"}>
+                        {c.kind === "voice" ? <Volume2 className="h-4 w-4 text-stone-500" /> : <Eye className="h-4 w-4 text-stone-500" />}
+                      </a>
+                    </div>
+                    {/* AI evidence body */}
+                    <div className="px-3.5 py-3 space-y-2">
+                      {c.kind === "voice" && (
+                        c.transcript ? (
+                          <p className="text-xs text-stone-700 bg-orange-50/60 border border-orange-100 rounded-lg p-2.5 italic">"{c.transcript}"</p>
+                        ) : (
+                          <p className="text-xs text-stone-400 italic">No transcript (processing pending or offline mode).</p>
+                        )
+                      )}
+                      {c.kind === "photo" && c.vision && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {c.vision.equipment && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">Equipment: {c.vision.equipment}</span>}
+                          {typeof c.vision.ppe_detected === "boolean" && (
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${c.vision.ppe_detected ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-700 border-red-200"}`}>
+                              PPE: {c.vision.ppe_detected ? "detected" : "NOT detected"}
+                            </span>
+                          )}
+                          {typeof c.vision.warning_label_present === "boolean" && (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Warning label: {c.vision.warning_label_present ? "yes" : "no"}</span>
+                          )}
+                        </div>
+                      )}
+                      {c.kind === "photo" && c.ocr && (
+                        <div className="text-[11px] text-stone-600 space-y-0.5">
+                          {c.ocr.meter_display && <p><span className="font-semibold text-stone-500">Meter:</span> <span className="fs-mono">{c.ocr.meter_display}</span></p>}
+                          {c.ocr.serial_number && <p><span className="font-semibold text-stone-500">Serial:</span> <span className="fs-mono">{c.ocr.serial_number}</span></p>}
+                          {c.ocr.manufacturer && <p><span className="font-semibold text-stone-500">Maker:</span> {c.ocr.manufacturer}</p>}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {documents.length > 0 && (
+            <Card className="p-6">
+              <p className="text-sm font-semibold text-stone-800 mb-3">Documents already generated</p>
+              <div className="space-y-2">
+                {documents.map((d) => (
+                  <div key={d.id} className="flex items-center justify-between border border-stone-100 rounded-xl px-3.5 py-2.5">
+                    <p className="text-xs font-medium text-stone-700 truncate">{d.name}</p>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <StatusPill label={d.status} />
+                      {d.file_url && <a href={`${api.API_BASE_URL}${d.file_url}`} target="_blank" rel="noreferrer" className="p-1.5 rounded-lg hover:bg-stone-100"><Download className="h-4 w-4 text-stone-500" /></a>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+        </div>
+
+        {/* RIGHT: auto-filled template form */}
+        <div className="lg:col-span-7 space-y-6">
+          <Card className="p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
+              <div>
+                <p className="text-sm font-semibold text-stone-800">{template ? template.name : "No template detected"}</p>
+                <p className="text-xs text-stone-500 mt-0.5">
+                  {template
+                    ? "Values below were auto-suggested from the evidence on the left — verify each, edit anything, blanks at the end."
+                    : "No template was submitted against. Generate files from the Documents view or assign a template first."}
+                </p>
+              </div>
+              {template && (
+                <div className="flex items-center gap-2 text-xs text-stone-500">
+                  <Sparkles className="h-4 w-4 text-orange-500" />
+                  <span className="font-semibold text-orange-700">{stats.suggested}/{stats.total_fields} auto-filled</span>
+                </div>
+              )}
+            </div>
+            {template && (
+              <div className="h-1.5 rounded-full bg-stone-100 overflow-hidden mt-2 mb-4">
+                <div className="h-full rounded-full bg-gradient-to-r from-orange-400 to-amber-400" style={{ width: `${suggestedPct}%` }} />
+              </div>
+            )}
+
+            {!template ? (
+              <p className="text-sm text-stone-400 py-8 text-center">Nothing to fill — this session has no template.</p>
+            ) : fields.length === 0 ? (
+              <p className="text-sm text-stone-400 py-8 text-center">This template has no fillable fields.</p>
+            ) : (
+              <div className="grid sm:grid-cols-2 gap-3">
+                {fields.map((f) => {
+                  const entry = values[f.field_id];
+                  const suggested = entry?.auto && entry?.value !== "" && entry?.value != null;
+                  const isCheckbox = FIELD_TYPE_INPUT[f.field_type] === "checkbox" || f.kind === "checkbox_option";
+                  const isMultiline = FIELD_TYPE_INPUT[f.field_type] === "textarea" || f.kind === "multiline_blank_group";
+                  const label = f.label || f.field_id;
+                  return (
+                    <div key={f.field_id} className={`p-3.5 rounded-xl border transition-colors ${suggested ? "border-orange-200 bg-orange-50/40" : "border-stone-200 bg-stone-50/40"} ${isMultiline ? "sm:col-span-2" : ""}`}>
+                      <div className="flex items-center justify-between mb-1.5 gap-2">
+                        <label className="text-xs font-semibold text-stone-700 truncate">{label}</label>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {entry && !entry.auto && <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wide">Edited</span>}
+                          {suggested && <SuggestionTag source={entry.source} confidence={entry.confidence} />}
+                          {!suggested && f.kind && KIND_LABEL[f.kind] && (
+                            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-stone-100 text-stone-500">{KIND_LABEL[f.kind]}</span>
+                          )}
+                        </div>
+                      </div>
+                      {isCheckbox ? (
+                        <label className="flex items-center gap-2.5 text-sm text-stone-800 font-medium cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={!!entry?.value}
+                            onChange={(e) => setValue(f.field_id, f, entry?.auto ? e.target.checked : e.target.checked)}
+                            className="h-4 w-4 rounded border-stone-300 text-orange-600 focus:ring-orange-400 cursor-pointer"
+                          />
+                          <span className="text-xs">{String(entry?.value ?? false) === "true" && entry?.auto ? `Suggested: ${entry.value === true || entry.value === "true" ? "checked" : "unchecked"}` : label}</span>
+                        </label>
+                      ) : isMultiline ? (
+                        <textarea
+                          value={typeof entry?.value === "string" ? entry.value : entry?.value == null ? "" : String(entry.value)}
+                          onChange={(e) => setValue(f.field_id, f, e.target.value)}
+                          rows={3}
+                          placeholder={suggested ? "" : `Enter ${label.toLowerCase()}...`}
+                          className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-orange-500"
+                        />
+                      ) : (
+                        <input
+                          type={FIELD_TYPE_INPUT[f.field_type] || "text"}
+                          value={typeof entry?.value === "string" ? entry.value : entry?.value == null ? "" : String(entry.value)}
+                          onChange={(e) => setValue(f.field_id, f, e.target.value)}
+                          placeholder={suggested ? "" : `Enter ${label.toLowerCase()}...`}
+                          className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-orange-500"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {saveError && (
+              <div className="mt-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5">
+                {saveError}
+              </div>
+            )}
+
+            {template && (
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <button
+                  onClick={submit}
+                  disabled={saving || filledCount === 0}
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-full px-5 py-2.5 shadow-sm disabled:opacity-40"
+                >
+                  {saving ? <Loader2 className="h-4 w-4 fs-spin" /> : <FileCheck2 className="h-4 w-4" />}
+                  Create document ({filledCount} field{filledCount === 1 ? "" : "s"})
+                </button>
+                <p className="text-[11px] text-stone-400">Generates the filled .docx and opens it in Documents → Pending Review for final approval.</p>
+              </div>
+            )}
+          </Card>
+
+          {createdDoc && (
+            <Card className="p-6 border-emerald-200 bg-emerald-50/40">
+              <div className="flex items-center gap-2 mb-2">
+                <CircleCheck className="h-5 w-5 text-emerald-600" />
+                <p className="text-sm font-semibold text-emerald-800">Document created — ready for final approval</p>
+              </div>
+              <p className="text-xs text-emerald-700 mb-3">{createdDoc.name} · {createdDoc.extracted_fields.length} fields filled · now Pending Review.</p>
+              <div className="flex flex-wrap gap-3">
+                {createdDoc.file_url && (
+                  <a href={`${api.API_BASE_URL}${createdDoc.file_url}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-xs font-semibold text-stone-700 bg-white border border-stone-200 rounded-full px-4 py-2 hover:bg-stone-50">
+                    <Download className="h-3.5 w-3.5" /> Open .docx
+                  </a>
+                )}
+                <button onClick={onBack} className="inline-flex items-center gap-2 text-xs font-semibold text-white bg-stone-900 rounded-full px-4 py-2">
+                  Back to Documents <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </Card>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+/* ======================================================================
    DASHBOARD — TECHNICIANS
    ====================================================================== */
 
-function TechnicianDetailPanel({ tech, onClose }) {
+function TechnicianDetailPanel({ tech, onClose, onReviewSubmission }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -2942,6 +3350,15 @@ function TechnicianDetailPanel({ tech, onClose }) {
                     <div className="flex items-center gap-3 shrink-0">
                       <ConfidenceBar value={d.overall_confidence} />
                       <StatusPill label={d.status} />
+                      {onReviewSubmission && (
+                        <button
+                          onClick={() => onReviewSubmission(d.job_id)}
+                          className="text-[11px] font-semibold text-orange-700 bg-orange-50 border border-orange-200 rounded-full px-2.5 py-1 hover:bg-orange-100"
+                          title="Review the technician's raw submission for this document"
+                        >
+                          Review submission
+                        </button>
+                      )}
                       {d.file_url && (
                         <a href={`${api.API_BASE_URL}${d.file_url}`} target="_blank" rel="noreferrer" className="p-1.5 rounded-lg hover:bg-stone-100">
                           <Download className="h-4 w-4 text-stone-500" />
@@ -2959,7 +3376,7 @@ function TechnicianDetailPanel({ tech, onClose }) {
   );
 }
 
-function TechniciansView({ technicians, jobs = [], onTechniciansChanged, loading, error, onRetry }) {
+function TechniciansView({ technicians, jobs = [], onTechniciansChanged, loading, error, onRetry, onReviewSubmission }) {
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
@@ -3047,7 +3464,7 @@ function TechniciansView({ technicians, jobs = [], onTechniciansChanged, loading
         </Card>
       )}
 
-      {detailTech && <TechnicianDetailPanel tech={detailTech} onClose={() => setDetailTech(null)} />}
+      {detailTech && <TechnicianDetailPanel tech={detailTech} onClose={() => setDetailTech(null)} onReviewSubmission={onReviewSubmission} />}
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {technicians.map((t) => {
@@ -4507,16 +4924,17 @@ const VIEW_TITLES = {
 
 function Dashboard({ onLogout }) {
   const [active, setActive] = useState("overview");
+  const [reviewJobId, setReviewJobId] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [selectedCaptureJobId, setSelectedCaptureJobId] = useState("");
 
   const [state, setState] = useState({
-    technicians: [], jobs: [], templates: [], documents: [],
+    technicians: [], jobs: [], templates: [], documents: [], captureSubmissions: [],
     complianceRules: [], complianceEvents: [], complianceRate: null, summary: null,
   });
   const [loading, setLoading] = useState({
-    technicians: true, jobs: true, templates: true, documents: true, compliance: true, analytics: true,
+    technicians: true, jobs: true, templates: true, documents: true, captureSubmissions: true, compliance: true, analytics: true,
   });
   const [errors, setErrors] = useState({});
 
@@ -4527,6 +4945,7 @@ function Dashboard({ onLogout }) {
       ["jobs", api.getJobs, (v) => setState((s) => ({ ...s, jobs: v }))],
       ["templates", api.getTemplates, (v) => setState((s) => ({ ...s, templates: v }))],
       ["documents", api.getDocuments, (v) => setState((s) => ({ ...s, documents: v }))],
+      ["captureSubmissions", api.getCaptureSessions, (v) => setState((s) => ({ ...s, captureSubmissions: v }))],
       ["compliance", () => Promise.all([api.getComplianceRules(), api.getComplianceEvents(), api.getComplianceRate()]),
         ([rules, events, rate]) => setState((s) => ({ ...s, complianceRules: rules, complianceEvents: events, complianceRate: rate }))],
       ["analytics", api.getAnalyticsSummary, (v) => setState((s) => ({ ...s, summary: v }))],
@@ -4552,6 +4971,7 @@ function Dashboard({ onLogout }) {
       [api.getJobs,        (v) => setState((s) => ({ ...s, jobs: v }))],
       [api.getTemplates,   (v) => setState((s) => ({ ...s, templates: v }))],
       [api.getDocuments,   (v) => setState((s) => ({ ...s, documents: v }))],
+      [api.getCaptureSessions, (v) => setState((s) => ({ ...s, captureSubmissions: v }))],
       [() => Promise.all([api.getComplianceRules(), api.getComplianceEvents(), api.getComplianceRate()]),
         ([rules, events, rate]) => setState((s) => ({ ...s, complianceRules: rules, complianceEvents: events, complianceRate: rate }))],
       [api.getAnalyticsSummary, (v) => setState((s) => ({ ...s, summary: v }))],
@@ -4584,6 +5004,9 @@ function Dashboard({ onLogout }) {
       }
       if (msg.event === "document_reviewed") {
         api.getDocuments().then((v) => setState((s) => ({ ...s, documents: v }))).catch(() => {});
+      }
+      if (msg.event === "capture_uploaded") {
+        api.getCaptureSessions().then((v) => setState((s) => ({ ...s, captureSubmissions: v }))).catch(() => {});
       }
     });
     return () => ws.close();
@@ -4626,7 +5049,23 @@ function Dashboard({ onLogout }) {
       } catch (err) {
         setErrors((e) => ({ ...e, documents: err.message }));
       }
+      try {
+        const v = await api.getCaptureSessions();
+        setState((s) => ({ ...s, captureSubmissions: v }));
+        setErrors((e) => ({ ...e, captureSubmissions: undefined }));
+      } catch (err) {
+        setErrors((e) => ({ ...e, captureSubmissions: err.message }));
+      }
       api.getAnalyticsSummary().then((v) => setState((s) => ({ ...s, summary: v }))).catch(() => {});
+    },
+    captureSubmissions: async () => {
+      try {
+        const v = await api.getCaptureSessions();
+        setState((s) => ({ ...s, captureSubmissions: v }));
+        setErrors((e) => ({ ...e, captureSubmissions: undefined }));
+      } catch (err) {
+        setErrors((e) => ({ ...e, captureSubmissions: err.message }));
+      }
     },
   };
 
@@ -4683,15 +5122,27 @@ function Dashboard({ onLogout }) {
       />
     ),
     documents: (
-      <DocumentsView
-        documents={state.documents} jobs={state.jobs} complianceEvents={state.complianceEvents} onDocumentsChanged={refetch.documents}
-        loading={loading.documents} error={errors.documents} onRetry={refetch.documents}
-      />
+      reviewJobId ? (
+        <ReviewSubmissionView
+          jobId={reviewJobId}
+          onBack={() => { setReviewJobId(null); setActive("documents"); }}
+          onDocumentCreated={refetch.documents}
+        />
+      ) : (
+        <DocumentsView
+          documents={state.documents} jobs={state.jobs} complianceEvents={state.complianceEvents} onDocumentsChanged={refetch.documents}
+          captureSubmissions={state.captureSubmissions} captureSubmissionsLoading={loading.captureSubmissions}
+          captureSubmissionsError={errors.captureSubmissions} onRetryCaptureSubmissions={refetch.captureSubmissions}
+          loading={loading.documents} error={errors.documents} onRetry={refetch.documents}
+          onReviewSubmission={(jobId) => { setReviewJobId(jobId); setActive("documents"); }}
+        />
+      )
     ),
     technicians: (
       <TechniciansView
         technicians={state.technicians} jobs={state.jobs} onTechniciansChanged={refetch.technicians}
         loading={loading.technicians} error={errors.technicians} onRetry={refetch.technicians}
+        onReviewSubmission={(jobId) => { setReviewJobId(jobId); setActive("documents"); }}
       />
     ),
     compliance: (

@@ -14,7 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { getAssignedTemplates, type Template } from "../../services/templates";
 import { ApiError } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
-import { colors } from "../../constants/theme";
+import { colors, shadows, radius, spacing } from "../../constants/theme";
 import type { RootStackParamList } from "../navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Templates">;
@@ -157,11 +157,12 @@ const styles = StyleSheet.create({
     gap: 14
   },
   card: {
-    backgroundColor: colors.darkSurface,
-    borderRadius: 16,
-    padding: 16,
+    backgroundColor: colors.glass,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
     borderWidth: 1,
-    borderColor: "#28282C"
+    borderColor: colors.glassBorder,
+    ...shadows.card
   },
   cardPressed: {
     opacity: 0.85,
@@ -174,12 +175,15 @@ const styles = StyleSheet.create({
     marginBottom: 16
   },
   iconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: "rgba(242, 98, 42, 0.12)",
+    width: 46,
+    height: 46,
+    borderRadius: 13,
+    backgroundColor: colors.orangeLight,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.orangeBorder,
+    ...shadows.softGlow
   },
   headerInfo: {
     flex: 1
@@ -217,11 +221,12 @@ const styles = StyleSheet.create({
   actionBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: spacing.xs,
     backgroundColor: colors.orange,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: radius.pill,
+    ...shadows.orangeGlow
   },
   actionBtnText: {
     color: "#FFFFFF",
@@ -248,9 +253,10 @@ const styles = StyleSheet.create({
   },
   retryBtn: {
     backgroundColor: colors.orange,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: radius.pill,
+    ...shadows.orangeGlow
   },
   retryText: {
     color: "#FFFFFF",

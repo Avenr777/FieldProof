@@ -13,10 +13,10 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { getMyTemplates, type Template } from "../../services/templates";
+import { getMyTemplates, type RequiredProofType, type Template } from "../../services/templates";
 import { ApiError } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
-import { colors } from "../../constants/theme";
+import { colors, shadows, radius, spacing } from "../../constants/theme";
 import type { RootStackParamList } from "../navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "MyTemplates">;
@@ -33,6 +33,19 @@ const TRADE_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
 function tap() {
   if (Platform.OS !== "web") {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  }
+}
+
+function proofLabel(proof: RequiredProofType, minPhotos?: number | null) {
+  switch (proof) {
+    case "photo":
+      return `Photos${minPhotos && minPhotos > 1 ? ` (min. ${minPhotos})` : ""}`;
+    case "voice":
+      return "Voice note";
+    case "form_fill":
+      return "Complete form";
+    case "text_note":
+      return "Text note";
   }
 }
 
@@ -98,6 +111,7 @@ export function MyTemplatesScreen({ navigation }: Props) {
   const renderTemplate = ({ item }: { item: Template }) => {
     const icon = TRADE_ICON[item.trade] || "documents";
     const schedule = getScheduleLabel(item);
+    const proofLabels = (item.required_proof_types || []).map((proof) => proofLabel(proof, item.min_photos));
 
     return (
       <Pressable
@@ -129,6 +143,17 @@ export function MyTemplatesScreen({ navigation }: Props) {
           <View style={styles.notesBox}>
             <Ionicons name="information-circle-outline" size={13} color={colors.orangeBright} />
             <Text style={styles.notesText} numberOfLines={2}>{item.notes}</Text>
+          </View>
+        ) : null}
+
+        {(proofLabels.length > 0 || item.technician_instructions) ? (
+          <View style={styles.requirementsBox}>
+            {proofLabels.length > 0 ? (
+              <Text style={styles.requirementsText}>Required: {proofLabels.join(", ")}</Text>
+            ) : null}
+            {item.technician_instructions ? (
+              <Text style={styles.requirementsText}>Instructions: {item.technician_instructions}</Text>
+            ) : null}
           </View>
         ) : null}
 
@@ -295,15 +320,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.black
   },
   welcome: {
-    backgroundColor: colors.darkSurface,
-    paddingTop: 18,
-    paddingHorizontal: 20,
-    paddingBottom: 22,
+    backgroundColor: colors.glass,
+    paddingTop: spacing.xl,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xxl,
     borderBottomWidth: 1,
-    borderBottomColor: colors.darkBorder,
-    borderBottomLeftRadius: 26,
-    borderBottomRightRadius: 26,
-    gap: 16
+    borderBottomColor: colors.glassBorder,
+    borderBottomLeftRadius: radius.xxl,
+    borderBottomRightRadius: radius.xxl,
+    gap: spacing.lg,
+    ...shadows.card
   },
   topRow: {
     flexDirection: "row",
@@ -316,12 +342,13 @@ const styles = StyleSheet.create({
     gap: 12
   },
   logoBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 11,
     backgroundColor: colors.orange,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
+    ...shadows.orangeGlow
   },
   logoText: {
     color: "#FFFFFF",
@@ -411,14 +438,15 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   card: {
-    backgroundColor: colors.darkSurface,
-    borderRadius: 18,
+    backgroundColor: colors.glass,
+    borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.darkBorder,
+    borderColor: colors.glassBorder,
     borderLeftWidth: 4,
     borderLeftColor: colors.orange,
-    padding: 16,
-    gap: 10
+    padding: spacing.lg,
+    gap: spacing.md,
+    ...shadows.card
   },
   cardPressed: {
     opacity: 0.8,
@@ -554,14 +582,15 @@ const styles = StyleSheet.create({
     gap: 10
   },
   emptyIconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 66,
+    height: 66,
+    borderRadius: 33,
     backgroundColor: colors.orangeLight,
     borderWidth: 1,
     borderColor: colors.orangeBorder,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
+    ...shadows.softGlow
   },
   emptyTitle: {
     color: colors.text,
@@ -651,5 +680,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "500",
     flex: 1
+  },
+  requirementsBox: {
+    gap: 4,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    backgroundColor: colors.amberLight,
+    borderWidth: 1,
+    borderColor: colors.warningBorder
+  },
+  requirementsText: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    lineHeight: 15
   }
 });

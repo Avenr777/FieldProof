@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app import models, schemas, auth
 from app.services import storage
+from app.websocket import manager
 
 router = APIRouter(prefix="/capture", tags=["capture"])
 
@@ -97,6 +99,7 @@ def start_capture_session(
         "min_photos": asn.min_photos if (asn and asn.min_photos is not None) else 1,
         "require_voice": asn.require_voice if (asn and asn.require_voice is not None) else False,
         "technician_instructions": asn.technician_instructions if asn else None,
+        "notes": asn.notes if asn else None,
     }
 
 
@@ -160,6 +163,7 @@ async def create_capture(
     db.add(capture)
     db.commit()
     db.refresh(capture)
+    await manager.broadcast({"event": "capture_uploaded", "job_id": job.id})
 
     # Deferred import avoids requiring a running Redis instance just to
     # import the FastAPI app (e.g. when running tests without a worker).
