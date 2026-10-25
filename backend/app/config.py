@@ -41,9 +41,24 @@ class Settings(BaseSettings):
     # AI Model Providers
     openai_api_key: str | None = None
     openai_base_url: str = "https://api.openai.com/v1"
+
+    # Chat / extraction model (LLM)
     ai_model_chat: str = "gpt-4o-mini"
+    # Vision-language model (stubbed until Phase 3 photos/OCR work)
     ai_model_vision: str = "gpt-4o-mini"
+    # Whisper model name — "whisper-1" for the hosted API
     ai_model_whisper: str = "whisper-1"
+
+    # STT settings
+    # Domain prompt injected as Whisper initial_prompt for vocabulary priming.
+    # Disable to ablate the effect: set STT_USE_DOMAIN_PROMPT=false
+    stt_use_domain_prompt: bool = True
+    # Default trade for field extraction when not overridden by job type
+    default_trade: str = "electrical"
+
+    # LLM extraction settings
+    # Prompt version used for extraction — bump to "v2" etc. when iterating
+    llm_prompt_version: str = "v1"
 
 
 settings = Settings()

@@ -10,16 +10,31 @@ frontend/node_modules/
 backend/__pycache__/
 backend/*.pyc
 *.env
-.env.example
-test
-fieldproof.db
-
+# NOTE: .env.example is intentionally NOT gitignored — it's a template for contributors.
 
 __pycache__/
 *.pyc
 .freebuff/
 backend/uploads/
 
+# Application logs (committed accidentally — cleaned up)
 .backend.log
 .frontend.log
+.expo.log
+
+# Database files
+fieldproof.db
 backend/fieldproof.db
+
+# Evaluation: raw audio recordings (can be large; keep out of the repo)
+backend/data/*.wav
+backend/data/*.mp3
+backend/data/*.m4a
+backend/data/*.ogg
+backend/data/*.flac
+# Evaluation run results (generated; not source)
+backend/eval/results/
+
+# Test cache
+.pytest_cache/
+backend/.pytest_cache/

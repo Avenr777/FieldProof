@@ -156,10 +156,14 @@ class Capture(Base):
     template_id = Column(String, ForeignKey("templates.id"), nullable=True, index=True)
     kind = Column(String, nullable=False)  # "voice" | "photo"
     file_url = Column(String, nullable=False)
-    transcript = Column(Text, nullable=True)       # filled in by Whisper task
+    transcript = Column(Text, nullable=True)        # plain text; backward-compat for UI display
+    transcript_json = Column(JSON, nullable=True)   # full Transcript dataclass (segments, logprob, latency, model)
+    stt_model = Column(String, nullable=True)        # which Whisper model produced the transcript
+    stt_latency_s = Column(Float, nullable=True)    # transcription wall-clock time (for eval)
     vision_labels = Column(JSON, nullable=True)     # filled in by vision task
     ocr_text = Column(JSON, nullable=True)          # filled in by OCR task
     processed = Column(Boolean, default=False)
+    processing_error = Column(Text, nullable=True)  # last error message if processing failed
     created_at = Column(DateTime, default=datetime.utcnow)
 
     job = relationship("Job", back_populates="captures")
@@ -195,12 +199,16 @@ class Document(Base):
     job_id = Column(String, ForeignKey("jobs.id"))
     template_id = Column(String, ForeignKey("templates.id"), nullable=True)
     name = Column(String, nullable=False)
-    extracted_fields = Column(JSON, default=list)  # [{field, value, source, confidence}]
+    extracted_fields = Column(JSON, default=list)  # [{field, value, source, confidence, evidence, grounded, status}]
     overall_confidence = Column(Float, default=0.0)
     status = Column(Enum(DocStatus), default=DocStatus.pending_review)
     file_url = Column(String, nullable=True)
     auto_filled = Column(Boolean, default=True)
     field_sources = Column(JSON, nullable=True)
+    # Reviewer edits: [{field, old_value, new_value, user_id, timestamp}] — correction-rate data
+    field_edit_log = Column(JSON, default=list)
+    # LLM extraction metadata for evaluation
+    llm_meta = Column(JSON, nullable=True)  # {prompt_version, model, tokens, latency_s, validation_status}
     created_at = Column(DateTime, default=datetime.utcnow)
 
     job = relationship("Job", back_populates="documents")

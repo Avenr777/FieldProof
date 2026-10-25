@@ -1,0 +1,2160 @@
+{
+    "document": {
+        "filename": "Exposure.docx",
+        "format": "DOCX"
+    },
+    "elements": [
+        {
+            "id": 1,
+            "type": "heading",
+            "style": "Heading 2",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Debugging and Verification updates along with Workflow Testing proposal. "
+                },
+                {
+                    "type": "blank",
+                    "placeholder": "_______",
+                    "required": true
+                },
+                {
+                    "type": "text",
+                    "text": "s"
+                }
+            ]
+        },
+        {
+            "id": 2,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Status update and Proposed workflow for Testing and Validation of the System."
+                }
+            ]
+        },
+        {
+            "id": 3,
+            "type": "heading",
+            "style": "Heading 1",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "1. Executive Summary"
+                }
+            ]
+        },
+        {
+            "id": 4,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "The exposure-scoring plugin's two tools, trace_attack_paths and score_exposure, are now fully working end-to-end on the live Hermes deployment, verified against the four_chains.ttl fixture graph. This closes out the read-path/scoring portion of the roadmap that had been blocked since the last build log."
+                }
+            ]
+        },
+        {
+            "id": 5,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Getting here required identifying and fixing thirteen distinct issues spanning the plugin's Python code, its Cypher queries, its manifest, the Hermes plugin API itself, and the surrounding infrastructure (a stopped Neo4j container, stale cached bytecode). None of these were visible from a single error message — most surfaced only after the fix for a prior issue was in place. Section 3 lists all thirteen with resolutions."
+                }
+            ]
+        },
+        {
+            "id": 6,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Three of the four fixture attack chains have been verified correct end-to-end (Citrix, VMware, SolarWinds); the fourth (Pulse Secure) is expected to pass on the same basis and is queued for a final confirmation pass."
+                }
+            ]
+        },
+        {
+            "id": 7,
+            "type": "heading",
+            "style": "Heading 1",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "2. Background"
+                }
+            ]
+        },
+        {
+            "id": 8,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Per the existing roadmap document, stages 1–5 of the agent request lifecycle (trace_attack_paths -> score_exposure, callable by the reasoning model inside Hermes). In practice, live testing this session surfaced that the integration had never actually completed a real, correct end-to-end run against the deployed Hermes instance — prior apparent successes were either against mocked data, or affected by bugs that happened to fail silently (returning empty results rather than raising errors)."
+                }
+            ]
+        },
+        {
+            "id": 9,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "This report documents the debugging pass that took the plugin from that state to genuinely verified, live, correct output."
+                }
+            ]
+        },
+        {
+            "id": 10,
+            "type": "heading",
+            "style": "Heading 1",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "3. Issues Found and Resolved"
+                }
+            ]
+        },
+        {
+            "id": 11,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Listed in the order encountered. Several were masked by earlier ones — for example, the Cypher query bugs (#3, #4) were invisible until the double-JSON-decode bug (#2) was fixed, since before that every call returned an empty result regardless of what the query itself did."
+                }
+            ]
+        },
+        {
+            "id": 12,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "empty_paragraph"
+                }
+            ]
+        },
+        {
+            "id": 13,
+            "type": "heading",
+            "style": "Heading 1",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "4. Verification Results"
+                }
+            ]
+        },
+        {
+            "id": 14,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Each row below reflects a live trace_attack_paths call followed by score_exposure on its output, run in a fresh Hermes session and confirmed against the raw tool-output log (not the chat model's paraphrase of it)."
+                }
+            ]
+        },
+        {
+            "id": 15,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "empty_paragraph"
+                }
+            ]
+        },
+        {
+            "id": 16,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "empty_paragraph"
+                }
+            ]
+        },
+        {
+            "id": 17,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "empty_paragraph"
+                }
+            ]
+        },
+        {
+            "id": 18,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "empty_paragraph"
+                }
+            ]
+        },
+        {
+            "id": 19,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "empty_paragraph"
+                }
+            ]
+        },
+        {
+            "id": 20,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "empty_paragraph"
+                }
+            ]
+        },
+        {
+            "id": 21,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "empty_paragraph"
+                }
+            ]
+        },
+        {
+            "id": 22,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "The orion-mgmt-01 (SolarWinds) result is the most informative test: this chain has no Vulnerability node in the fixture graph, and the tool correctly returned no CVE/KEV data and scored at the standard tier rather than fabricating or defaulting to a critical result. This confirms the KEV short-circuit in score_exposure only fires on genuine matches."
+                }
+            ]
+        },
+        {
+            "id": 23,
+            "type": "heading",
+            "style": "Heading 1",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "5. Current Status"
+                }
+            ]
+        },
+        {
+            "id": 24,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "trace_attack_paths and score_exposure: working, verified live, git commit in progress to lock in the working state (all plugin files were previously untracked)."
+                }
+            ]
+        },
+        {
+            "id": 25,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Case A (: CAN_REACH cache) / Case B (bounded APOC live traversal): both working; Case B correctly falls back when Case A is empty."
+                }
+            ]
+        },
+        {
+            "id": 26,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Cache writes-back (roadmap item A.2a): code complete, disabled by default (ALLOW_WRITE_BACK = False) pending a deliberate config.yaml change to enable write-cypher and disable Neo4j read-only mode."
+                }
+            ]
+        },
+        {
+            "id": 27,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "KEV enrichment: works from both the live CISA feed and the graph's own kev property where present (fixture data only), with fail-open behaviour on network issues."
+                }
+            ]
+        },
+        {
+            "id": 28,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "CVSS/EPSS scoring tier: not yet reachable — blocked on Open Item #1 (Team-A to confirm real property names on: Vulnerability in the production graph)."
+                }
+            ]
+        },
+        {
+            "id": 29,
+            "type": "heading",
+            "style": "Heading 1",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "6. Open Items / Next Steps"
+                }
+            ]
+        },
+        {
+            "id": 30,
+            "type": "heading",
+            "style": "Heading 2",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Exposure agent"
+                }
+            ]
+        },
+        {
+            "id": 31,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Commit all plugin files to git (currently untracked — this is the immediate priority, given how much time was lost tonight to configuration and file-state drift)."
+                }
+            ]
+        },
+        {
+            "id": 32,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Verify the fourth fixture chain (vpn-gateway-01 / Pulse Secure) to complete coverage."
+                }
+            ]
+        },
+        {
+            "id": 33,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Decide on and schedule enabling the: CAN_REACH write-back (A.2a) — requires a conscious, narrowly-scoped config change, not a blanket relaxation of write protections."
+                }
+            ]
+        },
+        {
+            "id": 34,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Bring the CVSS/EPSS property-naming proposal (previously drafted) to Team-A — this fixture's camelCase naming (cvssScore, no epss field at all) is a useful data point for that conversation, not necessarily what production will look like."
+                }
+            ]
+        },
+        {
+            "id": 35,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Add a. gitignore for __pycache__/ and *.bak and delete __pycache__ before any future restart after an edit — a permissions mismatch (root-owned cache files) caused a stale-bytecode issue that cost significant debugging time tonight."
+                }
+            ]
+        },
+        {
+            "id": 36,
+            "type": "heading",
+            "style": "Heading 2",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Assurance and Orchestration agent:"
+                }
+            ]
+        },
+        {
+            "id": 37,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "End-to-end workflow tested successfully against a basic Discover attack via Caldera; the flow is confirmed working. Currently running locally (not yet on the shared VM) to make it easier to work with Caldera's GUI and monitor operations, agents, and metrics during active development. Once the core workflow is stable, the setup and code will move to the VM along with the required Caldera configuration for a centralized setup."
+                }
+            ]
+        },
+        {
+            "id": 38,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Video documentation has been uploaded to the shared Google Drive folder, covering current progress, Wazuh data fetching, cron jobs, and Kanban integration."
+                }
+            ]
+        },
+        {
+            "id": 39,
+            "type": "heading",
+            "style": "Heading 2",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Team access — Wazuh dashboard"
+                }
+            ]
+        },
+        {
+            "id": 40,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Per the shared documentation, the Wazuh dashboard is reached via:"
+                }
+            ]
+        },
+        {
+            "id": 41,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "ssh -L 8443:localhost:443 azureuser@20.219.248.129"
+                }
+            ]
+        },
+        {
+            "id": 42,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "then browsing to https://localhost:8443 locally."
+                }
+            ]
+        },
+        {
+            "id": 43,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "empty_paragraph"
+                }
+            ]
+        },
+        {
+            "id": 44,
+            "type": "heading",
+            "style": "Heading 1",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "7. Recommended Next Coordination Point"
+                }
+            ]
+        },
+        {
+            "id": 45,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "With both agents now past their first genuinely verified end-to-end runs, this is a natural point to lock down the Exposure -> Coordinator -> Assurance hand-off contract (roadmap Phase C) before either side builds further against assumptions about the other's interface. Concretely: agree the JSON shape Exposure's ranked findings are handed off in, and what minimal input Assurance needs (asset, CVE, technique) to select and run a matching Caldera ability. Once Assurance is running on the shared VM, a joint test — Exposure traces and scores a path, hands it off, Assurance executes the matching attack — would close the loop end-to-end for the first time."
+                }
+            ]
+        },
+        {
+            "id": 46,
+            "type": "heading",
+            "style": "Heading 1",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "8. Proposed Training Lab — Wazuh Detection Environment (OWASP Juice Shop)"
+                }
+            ]
+        },
+        {
+            "id": 47,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "A separate, complementary proposal: a cloud-based, Dockerized lab for learning the full attack -> telemetry -> detection -> alert cycle using Wazuh, distinct from the production Exposure/Assurance agent work above. Purpose: generate authorized security-testing activity against a deliberately vulnerable target and observe exactly what Wazuh does and does not detect."
+                }
+            ]
+        },
+        {
+            "id": 48,
+            "type": "heading",
+            "style": "Heading 2",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "8.1 Components"
+                }
+            ]
+        },
+        {
+            "id": 49,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "OWASP Juice Shop — deliberately vulnerable web application (the target). Chosen over Metasploitable specifically because it is built for containerized deployment, whereas Metasploitable is designed as a full vulnerable VM and is a poor fit for a Docker-first lab."
+                }
+            ]
+        },
+        {
+            "id": 50,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Wazuh Agent — collects security/system telemetry from the target environment and forwards it to the Manager."
+                }
+            ]
+        },
+        {
+            "id": 51,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Wazuh Manager — receives agent events, applies detection rules, generates alerts."
+                }
+            ]
+        },
+        {
+            "id": 52,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Wazuh Indexer — stores events/alerts for search and analysis (OpenSearch-based)."
+                }
+            ]
+        },
+        {
+            "id": 53,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Wazuh Dashboard — web interface for alerts, events, and agent status."
+                }
+            ]
+        },
+        {
+            "id": 54,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Kali Linux / Metasploit — the testing environment used to generate authorized activity against Juice Shop. Note the naming distinction: Metasploit is the penetration-testing framework; Metasploitable is a separate, deliberately vulnerable target system; Juice Shop is a third, distinct deliberately vulnerable target focused specifically on web-application security."
+                }
+            ]
+        },
+        {
+            "id": 55,
+            "type": "heading",
+            "style": "Heading 2",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "8.2 Architecture"
+                }
+            ]
+        },
+        {
+            "id": 56,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Cloud VM -> Docker -> Wazuh Manager + Wazuh Indexer + Wazuh Dashboard + Wazuh Agent + OWASP Juice Shop + security-testing container, all on a private Docker network. The target is never exposed directly to the public Internet; the cloud firewall/security group restricts access to the lab, and Docker network rules control which containers can reach one another. A single cloud VM is sufficient to start; the Wazuh stack, attacker, and target can later be split across separate machines for a more realistic multi-host setup."
+                }
+            ]
+        },
+        {
+            "id": 57,
+            "type": "heading",
+            "style": "Heading 2",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "8.3 Critical gap in the basic flow — application-layer visibility"
+                }
+            ]
+        },
+        {
+            "id": 58,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "The originally proposed flow — Security-testing activity -> Juice Shop -> Wazuh Agent -> Wazuh Manager -> Detection rules -> Wazuh alert -> Dashboard — understates one thing: a Wazuh agent is fundamentally a host-based monitor (file integrity monitoring, log parsing, rootkit checks, process/syscall auditing). It has no inherent understanding of an HTTP-layer attack such as SQL injection or XSS arriving over the network. Without something translating the attack into a form Wazuh can parse, the lab will show host- and container-level noise (e.g. Docker start/stop events) but will not show specific, attack-correlated alerts — which is the actual point of the exercise."
+                }
+            ]
+        },
+        {
+            "id": 59,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Recommended fix, needed for real visibility:"
+                }
+            ]
+        },
+        {
+            "id": 60,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Add a reverse proxy with ModSecurity (commonly Nginx + ModSecurity) in front of Juice Shop, so the path becomes: Attacker -> Nginx + ModSecurity -> Juice Shop. ModSecurity logs attack signatures (SQLi, XSS, path traversal, etc.) to its audit log; the Wazuh agent reads that log, and Wazuh ships built-in decoders/rules for ModSecurity output. This is the piece that turns a generic attack into a specific, readable Dashboard alert, and is the pattern most working Wazuh + Juice Shop labs use."
+                }
+            ]
+        },
+        {
+            "id": 61,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Optionally, add Suricata (Wazuh integrates with it directly) for network-layer detection — port scans and exploit traffic patterns from the Kali/Metasploit container — so activity is caught even where it doesn't touch the HTTP layer at all."
+                }
+            ]
+        },
+        {
+            "id": 62,
+            "type": "heading",
+            "style": "Heading 2",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "8.4 Revised flow"
+                }
+            ]
+        },
+        {
+            "id": 63,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Security-testing activity (Kali/Metasploit) -> Nginx + ModSecurity reverse proxy -> Juice Shop -> ModSecurity audit log + host telemetry -> Wazuh Agent -> Wazuh Manager -> Detection rules -> Wazuh alert -> Wazuh Dashboard."
+                }
+            ]
+        },
+        {
+            "id": 64,
+            "type": "heading",
+            "style": "Heading 2",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "8.5 Security principle"
+                }
+            ]
+        },
+        {
+            "id": 65,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Keep the deliberately vulnerable target isolated at every layer: private Docker network only, cloud security group restricting all external access, no direct Internet exposure of Juice Shop or any other intentionally vulnerable service. Use only against systems owned or explicitly authorized for testing."
+                }
+            ]
+        },
+        {
+            "id": 66,
+            "type": "heading",
+            "style": "Heading 1",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "9. Assurance Agent: Job Queue Workflow (Proposal Summary)"
+                }
+            ]
+        },
+        {
+            "id": 67,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "As Exposure produces more findings than can be safely re-tested against a shared lab environment at once, Assurance needs a prioritized job queue rather than testing everything as it arrives. The proposed design reuses the existing: Finding node and graph rather than introducing new queue infrastructure, consistent with how the rest of the system already treats the graph as the single source of truth."
+                }
+            ]
+        },
+        {
+            "id": 68,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "State model: each: Finding gains a queue_status field (open -> queued -> testing -> tested, with detected/missed outcomes feeding confirmed-fixed or reopened) plus last_tested, detection_result, time_to_detect, and an attempt counter. Detection and remediation are tracked as distinct outcomes — a Wazuh alert firing confirms detection, not that the underlying vulnerability was fixed; confirmed-fixed only applies once a re-test shows the exploit no longer succeeds."
+                }
+            ]
+        },
+        {
+            "id": 69,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Prioritization: findings are pulled in order of exposure tier (critical first), with asset criticality as a secondary factor, so a KEV-listed CVE on a high-value asset is tested before the same CVE on a low-value one — something the current score_exposure ranking does not yet account for."
+                }
+            ]
+        },
+        {
+            "id": 70,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Starvation guard: a finding that has sat untested past a set age threshold gets a one-tier priority boost for that run, so a steady stream of new critical findings can never indefinitely starve older standard-tier ones."
+                }
+            ]
+        },
+        {
+            "id": 71,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Concurrency: rather than a single global lock, findings are locked per asset — multiple operations can run in parallel against different assets, but never two against the same asset at once, since overlapping attacks on one host would make it impossible to cleanly attribute which Wazuh alert belongs to which test."
+                }
+            ]
+        },
+        {
+            "id": 72,
+            "type": "paragraph",
+            "style": "List Paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Retry limits: findings that repeatedly fail to be confirmed one way or the other after several attempts are flagged for manual review rather than retried indefinitely."
+                }
+            ]
+        },
+        {
+            "id": 73,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "This keeps the queue logic entirely inside the existing Cypher/graph layer and Hermes' existing cron-job mechanism (the same pattern already planned for the reachability-cache refresh), rather than adding a separate message-queue dependency — with a standard queue (e.g. Redis-backed) noted as a reasonable later upgrade only if throughput genuinely outgrows this approach."
+                }
+            ]
+        },
+        {
+            "id": 74,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "empty_paragraph"
+                }
+            ]
+        },
+        {
+            "id": 75,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "10 . Coordinator Agent - Current Status"
+                }
+            ]
+        },
+        {
+            "id": 76,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "The Coordinator (hermes-1) side of the pipeline is now built and exercised end-to-end against fixture data, independent of live Wazuh scoring. Specifically:"
+                }
+            ]
+        },
+        {
+            "id": 77,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Board and dispatch infrastructure confirmed working: shared Kanban board across all three containers, profile identities disambiguated, cron-based dispatch fallback running for hermes-2/hermes-3. (hermes-1's own dispatch cron entry was found missing during this work and still needs adding — see Next Steps.)"
+                }
+            ]
+        },
+        {
+            "id": 78,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Post-scoring logic fully specified and running: parse-and-stop-on-malformed-input handling, idempotency checks against duplicate child creation, fixed→child-task / open→skip routing, and the human approval gate before Assurance is allowed to run Caldera."
+                }
+            ]
+        },
+        {
+            "id": 79,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Event-triggered flow (Wazuh alert → Coordinator → Exposure scan) built and demoed: a scope_request handler that takes a flagged asset, creates the real Exposure scan task, and links it back to the originating alert task."
+                }
+            ]
+        },
+        {
+            "id": 80,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Self-chaining triggers built for two of the three hand-off points, removing the need for an agent to poll or browse the board (which no agent can do — kanban_list/kanban_assignees are human-CLI-only):"
+                }
+            ]
+        },
+        {
+            "id": 81,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Exposure completion → automatically pings Coordinator to process findings."
+                }
+            ]
+        },
+        {
+            "id": 82,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Assurance completion → automatically pings Coordinator to check whether all children of a parent are resolved."
+                }
+            ]
+        },
+        {
+            "id": 83,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Approval notification stopgap built: a host-level script (not an agent — runs outside the container sandbox specifically so it can use the human-only board-browsing commands) polls for newly blocked approval-gate tasks, logs them for a human, and — once it sees an exact approve/deny comment — creates the resolution ping so Coordinator doesn't have to poll either."
+                }
+            ]
+        },
+        {
+            "id": 84,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Report assembly stubbed, not solved: once all children of a scan resolve, Coordinator now posts a single summary comment on the parent listing verdicts. This is explicitly a placeholder for the real Neo4j-based report (below), not a preview of it."
+                }
+            ]
+        },
+        {
+            "id": 85,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Coordinator Agent - Open Items / Next Steps"
+                }
+            ]
+        },
+        {
+            "id": 86,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Wire up the new exposure-scoring cronjob as a real trigger. This closes the loop the scope_request handler was built for, but the interface between the cronjob's output and Coordinator's expected ping shape hasn't been confirmed yet — worth an explicit test rather than assuming the shapes match."
+                }
+            ]
+        },
+        {
+            "id": 87,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Add the missing cron dispatch entry for hermes-1 (* * * * * docker exec hermes-1 hermes kanban dispatch) — currently only hermes-2/hermes-3 have it, so Coordinator-directed ping tasks can sit unclaimed."
+                }
+            ]
+        },
+        {
+            "id": 88,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Resolve the report-assembly open question once all children resolve): confirm the :Finding node schema and whether Exposure/Assurance actually write verdicts to Neo4j automatically, before replacing the comment-based report stub with a real graph read."
+                }
+            ]
+        },
+        {
+            "id": 89,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Decide on a real approval-notification channel. The current log-file watcher is a zero-dependency stopgap; a push notification (email, Slack/Telegram webhook, etc.) depends on what the VM's outbound network policy actually allows."
+                }
+            ]
+        },
+        {
+            "id": 90,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Set real --max-retries numbers for each task type — currently provisional defaults, not validated against real failure patterns. The dependency-vs-capability finding above should factor into this once retry behavior is better understood."
+                }
+            ]
+        },
+        {
+            "id": 91,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Clean up demo artifacts left on the shared board (duplicate scan chains and one malformed ping task from manual testing) before they're mistaken for real pending work."
+                }
+            ]
+        },
+        {
+            "id": 92,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Once the exposure\tscoring cronjob and the report-assembly schema are both settled, this is the natural point for the joint end-to-end test flagged in section 7 of the Exposure report — alert → scope → scan → approval → verification → report, with no manual nudging at any step."
+                }
+            ]
+        },
+        {
+            "id": 93,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "empty_paragraph"
+                }
+            ]
+        },
+        {
+            "id": 94,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Current Progress workflow"
+                }
+            ]
+        },
+        {
+            "id": 95,
+            "type": "paragraph",
+            "style": "Normal",
+            "content": [
+                {
+                    "type": "empty_paragraph"
+                }
+            ]
+        },
+        {
+            "id": 1,
+            "type": "table",
+            "rows": [
+                {
+                    "row": 0,
+                    "cells": [
+                        {
+                            "row": 0,
+                            "column": 0,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "#"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 0,
+                            "column": 1,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Issue"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 0,
+                            "column": 2,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Resolution"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 0,
+                            "column": 3,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Status"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "row": 1,
+                    "cells": [
+                        {
+                            "row": 1,
+                            "column": 0,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "1"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 1,
+                            "column": 1,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "ctx.mcp_client(\"neo4j\") called in __init__.py — this API does not exist in Hermes' plugin system."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 1,
+                            "column": 2,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Replaced with the real, documented API: ctx.dispatch_tool(name, args). Passed as a plain callable into tools.py so it stays testable with a mock."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 1,
+                            "column": 3,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Fixed"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "row": 2,
+                    "cells": [
+                        {
+                            "row": 2,
+                            "column": 0,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "2"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 2,
+                            "column": 1,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "mcp__neo4j__read_cypher's actual response is double-JSON-encoded: {\"result\": \"<json string>\"}, not {\"rows\": [...]} as originally assumed. Was silently returning empty results."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 2,
+                            "column": 2,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Confirmed the real shape via temporary debug logging against agent.log, then rewrote the parser to decode twice and return the bare row list."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 2,
+                            "column": 3,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Fixed"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "row": 3,
+                    "cells": [
+                        {
+                            "row": 3,
+                            "column": 0,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "3"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 3,
+                            "column": 1,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "vulnerability_enrichment.cypher referenced a relationship type, [: INSTANCE_OF], that does not exist anywhere in the live schema — silently matched zero rows every time."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 3,
+                            "column": 2,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Confirmed real schema via mcp__neo4j__get_schema; corrected to the actual relationship, [: HAS_WEAKNESS]."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 3,
+                            "column": 3,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Fixed"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "row": 4,
+                    "cells": [
+                        {
+                            "row": 4,
+                            "column": 0,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "4"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 4,
+                            "column": 1,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Same query read vuln.id for the CVE identifier; the Vulnerability node has no id property."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 4,
+                            "column": 2,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Corrected to vuln.mitreId, the field that holds the CVE string (e.g. \"CVE-2019-19781\")."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 4,
+                            "column": 3,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Fixed"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "row": 5,
+                    "cells": [
+                        {
+                            "row": 5,
+                            "column": 0,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "5"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 5,
+                            "column": 1,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "can_reach_writeback.cypher (A.2a cache write-back) expected node.name, but the live traversal query's actual output field is asset. Would have written zero relationships, with no error."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 5,
+                            "column": 2,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Corrected the field reference. Write-back remains disabled by default pending a deliberate config.yaml change (write-cypher + read-only mode)."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 5,
+                            "column": 3,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Fixed"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "row": 6,
+                    "cells": [
+                        {
+                            "row": 6,
+                            "column": 0,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "6"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 6,
+                            "column": 1,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "attack_path_live_traversal.cypher and tools.py had drifted out of sync on parameter naming ($traversal_limit vs $limit) and a dropped raw_path_count field needed for cap-hit logging."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 6,
+                            "column": 2,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Reconciled both files on a single $limit name; restored raw_path_count so the A.1 cap-hit warning fires when the traversal cap is hit."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 6,
+                            "column": 3,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Fixed"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "row": 7,
+                    "cells": [
+                        {
+                            "row": 7,
+                            "column": 0,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "7"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 7,
+                            "column": 1,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "schemas.py used \"input_schema\" as the top-level tool schema key; Hermes' plugin API expects \"parameters\"."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 7,
+                            "column": 2,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Renamed the key in both tool definitions, verified against Hermes' own plugin-guide examples."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 7,
+                            "column": 3,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Fixed"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "row": 8,
+                    "cells": [
+                        {
+                            "row": 8,
+                            "column": 0,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "8"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 8,
+                            "column": 1,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "kev_lookup.py's CISA KEV fetch had no failure handling — a network hiccup or outbound policy block would crash the entire score_exposure call, not just KEV enrichment."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 8,
+                            "column": 2,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Added fail-open behaviour serves a stale cache with a logged warning if one exists, otherwise defaults to \"not KEV-listed\" rather than raising. Added a retry backoff to avoid hammering the endpoint."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 8,
+                            "column": 3,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Fixed"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "row": 9,
+                    "cells": [
+                        {
+                            "row": 9,
+                            "column": 0,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "9"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 9,
+                            "column": 1,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "neo4j-fixture container had simply exited (cleanly, exit 0) after ~6 days idle and never restarted — caused a DNS/connectivity failure for the whole MCP chain."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 9,
+                            "column": 2,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "docker start neo4j-fixture, then a fresh Hermes restart to clear the stale failed-connection state."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 9,
+                            "column": 3,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Fixed"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "row": 10,
+                    "cells": [
+                        {
+                            "row": 10,
+                            "column": 0,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "10"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 10,
+                            "column": 1,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "plugin.yaml declared kind: backend, a value reserved for provider-type plugins (browser/image-gen backends). This is a plain tool-providing plugin and should have no kind field at all, per Hermes' own canonical example."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 10,
+                            "column": 2,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Removed the kind field entirely, matching the documented pattern."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 10,
+                            "column": 3,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Fixed"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "row": 11,
+                    "cells": [
+                        {
+                            "row": 11,
+                            "column": 0,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "11"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 11,
+                            "column": 1,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "__init__.py's ctx.register_tool() call mixed a positional and keyword argument for the same parameter (toolset), based on a misread of an old, already-resolved log line — this broke a previously-working registration."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 11,
+                            "column": 2,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Reverted to the all-keyword-argument form that was confirmed working: name=, toolset=, schema=, handler=."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 11,
+                            "column": 3,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Fixed"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "row": 12,
+                    "cells": [
+                        {
+                            "row": 12,
+                            "column": 0,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "12"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 12,
+                            "column": 1,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Stale __pycache__/*.pyc files, owned by root (not the hermes user the process runs as), were silently served instead of the current, already-fixed source files across several restarts."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 12,
+                            "column": 2,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Deleted __pycache__/ so Python regenerates it cleanly from current source on next import."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 12,
+                            "column": 3,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Fixed"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "row": 13,
+                    "cells": [
+                        {
+                            "row": 13,
+                            "column": 0,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "13"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 13,
+                            "column": 1,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "A one-character typo in tools.py: READ_CYPHER_TOOL = \"mcp__neo4j__read-cypher\" (hyphen) instead of the real registered name, \"mcp__neo4j__read_cypher\" (underscore)."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 13,
+                            "column": 2,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Corrected the constant. This was the final blocker before full end-to-end success."
+                                }
+                            ]
+                        },
+                        {
+                            "row": 13,
+                            "column": 3,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Fixed"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": 2,
+            "type": "table",
+            "rows": [
+                {
+                    "row": 0,
+                    "cells": [
+                        {
+                            "row": 0,
+                            "column": 0,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Start Asset"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 0,
+                            "column": 1,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "CVE"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 0,
+                            "column": 2,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Attack Chain"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 0,
+                            "column": 3,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "KEV Listed"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 0,
+                            "column": 4,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Tier / Score"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "row": 1,
+                    "cells": [
+                        {
+                            "row": 1,
+                            "column": 0,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "citrix-gw-01"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 1,
+                            "column": 1,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "CVE-2019-19781"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 1,
+                            "column": 2,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "APT29 via Citrix ADC"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 1,
+                            "column": 3,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Yes"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 1,
+                            "column": 4,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Critical / 99"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "row": 2,
+                    "cells": [
+                        {
+                            "row": 2,
+                            "column": 0,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "vmware-access-01"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 2,
+                            "column": 1,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "CVE-2020-4006"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 2,
+                            "column": 2,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "APT29 via VMware Workspace ONE"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 2,
+                            "column": 3,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Yes"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 2,
+                            "column": 4,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Critical / 99"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "row": 3,
+                    "cells": [
+                        {
+                            "row": 3,
+                            "column": 0,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "orion-mgmt-01"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 3,
+                            "column": 1,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "— (no CVE node)"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 3,
+                            "column": 2,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "APT29 via SolarWinds Compromise"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 3,
+                            "column": 3,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "N/A"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 3,
+                            "column": 4,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Standard / 23"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "row": 4,
+                    "cells": [
+                        {
+                            "row": 4,
+                            "column": 0,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "vpn-gateway-01"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 4,
+                            "column": 1,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "pending re-verification"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 4,
+                            "column": 2,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Pulse Secure chain"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 4,
+                            "column": 3,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "expected: Yes"
+                                }
+                            ]
+                        },
+                        {
+                            "row": 4,
+                            "column": 4,
+                            "type": "cell",
+                            "fillable": false,
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "expected: Critical"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "images": [
+        {
+            "type": "image",
+            "filename": "image4.png",
+            "path": "extracted_output\\images\\image4.png"
+        },
+        {
+            "type": "image",
+            "filename": "image3.png",
+            "path": "extracted_output\\images\\image3.png"
+        },
+        {
+            "type": "image",
+            "filename": "image2.png",
+            "path": "extracted_output\\images\\image2.png"
+        },
+        {
+            "type": "image",
+            "filename": "image1.png",
+            "path": "extracted_output\\images\\image1.png"
+        }
+    ],
+    "statistics": {
+        "paragraphs": 95,
+        "headings": 18,
+        "lists": 0,
+        "tables": 2,
+        "empty_cells": 0,
+        "blanks": 1,
+        "images": 4
+    }
+}
