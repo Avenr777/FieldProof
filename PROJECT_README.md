@@ -34,16 +34,16 @@ is honest about implementation status.
 
 | Stage | Status | Notes |
 |---|---|---|
-| **Speech-to-text (Whisper)** | ✅ **Real** | `app/services/stt.py` — OpenAI Whisper hosted API, domain vocabulary prompt, segment-level logprob stored for eval |
-| **LLM structured extraction** | ✅ **Real** | `app/services/llm.py` — GPT-4o-mini, JSON mode, Pydantic validation, retry-on-failure |
-| **Grounding check** | ✅ **Real** | Deterministic evidence-span verification; ungrounded fields forced to reviewer |
-| **Unit normalisation** | ✅ **Real** | `app/services/normalize.py` — spoken numbers → digits, "twenty amp" → "20A", date normalisation |
+| **Speech-to-text (Whisper)** | ✅ **Real** | `app/services/stt.py` — OpenAI Whisper hosted API (`whisper-1`), domain vocabulary prompt, segment-level logprob stored for eval |
+| **LLM structured extraction** | ✅ **Real** | `app/services/llm.py` — GPT-4o-mini & Llama-3-8B (`Llama3LLMExtractor`), JSON mode, Pydantic validation, retry-on-failure |
+| **Grounding check** | ✅ **Real** | Deterministic evidence-span verification; ungrounded fields marked and forced to reviewer |
+| **Unit normalisation** | ✅ **Real** | `app/services/normalize.py` — spoken numbers → digits, "twenty amp" → "20A", unit canonicalisation, date normalisation |
 | **Compliance check** | ✅ **Real** | Required-field check using compliance rules; ungrounded fields not counted as present |
-| **Vision-language photo analysis** | 🔲 **Stubbed** | `analyze_image()` returns heuristic placeholder; VLM integration is future work |
-| **OCR meter reading** | 🔲 **Stubbed** | `extract_text_ocr()` returns placeholder; cross-modal fusion is future work |
-| **Evaluation harness** | ✅ **Real** | `backend/eval/run.py` — WER via jiwer, field-level P/R/F1, hallucination rate, regex baseline |
+| **Vision-language photo analysis** | ✅ **Real** | `app/services/vision.py` — GPT-4o vision equipment, PPE compliance, and warning label detection with `_stub` fallback |
+| **OCR meter reading & fusion** | ✅ **Real** | `app/services/vision.py` — meter OCR extraction and cross-modal deterministic fusion into audio-extracted fields |
+| **Evaluation harness** | ✅ **Real** | `backend/eval/run.py` — WER via jiwer, field-level P/R/F1, hallucination rate, regex baseline, multi-voice & SNR support |
 
-When `OPENAI_API_KEY` is not set, all AI paths fall back to demo strings so
+When `OPENAI_API_KEY` is not set or quota is exhausted, all AI paths fall back gracefully to deterministic demo/stub values so
 the rest of the pipeline continues to function (upload → document → review
 → `.docx` download).
 
@@ -54,23 +54,24 @@ cd backend
 pytest tests/ -v
 ```
 
-46 unit tests cover normalisation helpers, grounding check, schema validation,
-LLM retry/fallback, STT file validation, and the compliance check — all with
-mocked API calls.
+100 unit & integration tests cover normalisation helpers, grounding check, schema validation,
+LLM retry/fallback, Llama-3 extractor, STT validation, vision analysis, OCR fusion, review edit tracking,
+and the compliance check — all with isolated mocks.
 
 ## Running the evaluation harness
 
 ```powershell
 cd backend
-python -m eval.run --config eval/config_baseline.json
+python -m eval.run --config eval/config_multivoice.json
 ```
 
 Results are written to `backend/eval/results/<run_id>/`:
 - `summary.csv` — one row per condition and field (source of paper tables)
 - `per_sample_<condition>.jsonl` — raw predictions + gold for error analysis
 
-The dataset lives in `backend/data/electrical_gold.jsonl` (8 seed samples).
-Expand it to 50–100 samples before reporting final numbers.
+The dataset lives in:
+- `backend/data/electrical_gold.jsonl` (30 core gold samples)
+- `backend/data/electrical_gold_multivoice.jsonl` (480 samples across 4 Piper TTS voices and 4 noise SNR conditions)
 
 
 ## Requirements

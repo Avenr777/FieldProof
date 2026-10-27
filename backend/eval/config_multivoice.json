@@ -1,0 +1,7 @@
+{
+  "dataset": "data/electrical_gold_multivoice.jsonl",
+  "prompt_version": "v1",
+  "output_dir": "eval/results",
+  "conditions": ["regex"],
+  "_comment": "Use --conditions whisper_only when Whisper STT support is added to the harness. For now regex runs on transcript_ref to verify F1 holds across all 480 voice/noise combinations."
+}

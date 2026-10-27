@@ -518,6 +518,8 @@ def main():
     parser.add_argument("--conditions", nargs="+",
                         default=["llm", "regex", "llm_no_grounding"],
                         help="Which conditions to run")
+    parser.add_argument("--use-stt", action="store_true", default=False,
+                        help="Transcribe audio files using STT before extraction instead of using reference transcripts")
     args = parser.parse_args()
 
     # Load config file if provided
@@ -585,6 +587,19 @@ def main():
         "llm_no_grounding": llm_no_grounding_extractor,
     }
 
+    stt_fn = None
+    if getattr(args, "use_stt", False):
+        from app.services.stt import get_transcriber
+        transcriber = get_transcriber()
+        if transcriber:
+            def _stt(audio_path: str):
+                t = transcriber.transcribe(audio_path, trade="electrical")
+                return t.text, t.model
+            stt_fn = _stt
+            logger.info("STT enabled using %s", getattr(transcriber, "_model", "Whisper"))
+        else:
+            logger.warning("No STT transcriber available (OPENAI_API_KEY not set). Falling back to reference transcripts.")
+
     all_conditions = {}
     for cond_name in args.conditions:
         if cond_name not in extractors:
@@ -596,6 +611,7 @@ def main():
             samples=samples,
             extractor_fn=extractors[cond_name],
             condition_name=cond_name,
+            stt_fn=stt_fn,
         )
         write_per_sample_jsonl(output_dir, cond_name, samples, preds)
         field_metrics, aggregate = compute_metrics(samples, preds)
