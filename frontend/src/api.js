@@ -15,9 +15,15 @@
  */
 
 // Both the dashboard and mobile client use this same FastAPI database gateway.
-// VITE_API_URL is useful when the dashboard is hosted separately; local dev
-// keeps working without an environment file.
-const BASE_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+//   1. VITE_API_URL wins when the dashboard is hosted separately from the API.
+//   2. Pages served from localhost (vite dev / vite preview) reach the API on :8000,
+//      which keeps local development working with no environment file.
+//   3. Anywhere else (Vercel) the API is served same-origin under /api, so a deploy
+//      needs no environment variable at all.
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const isLocalPage = typeof window !== "undefined" && LOCAL_HOSTS.has(window.location.hostname);
+const DEFAULT_URL = isLocalPage ? "http://127.0.0.1:8000" : "/api";
+const BASE_URL = (import.meta.env.VITE_API_URL || DEFAULT_URL).replace(/\/$/, "");
 export const API_BASE_URL = BASE_URL;
 
 // ─── In-memory token store ────────────────────────────────────────────────────
@@ -482,6 +488,17 @@ export async function uploadCapture(jobId, kind, file, templateId = null) {
 // ─── WebSocket ────────────────────────────────────────────────────────────────
 
 /**
+ * wsUrl turns BASE_URL into an absolute ws(s):// URL. BASE_URL can be a
+ * full origin (local dev) or a same-origin path like "/api" (Vercel), and
+ * WebSocket() rejects relative URLs.
+ */
+function wsUrl(path) {
+  if (/^https?:\/\//.test(BASE_URL)) return BASE_URL.replace(/^http/, "ws") + path;
+  const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+  return `${scheme}://${window.location.host}${BASE_URL}${path}`;
+}
+
+/**
  * Open a WebSocket connection to /ws for live dashboard updates.
  * Returns the WebSocket instance so the caller can close it on unmount.
  *
@@ -494,8 +511,7 @@ export async function uploadCapture(jobId, kind, file, templateId = null) {
  * @param {() => void} [onClose] - called when the socket closes
  */
 export function connectWebSocket(onMessage, onClose) {
-  const wsUrl = BASE_URL.replace(/^http/, "ws") + "/ws";
-  const ws = new WebSocket(wsUrl);
+  const ws = new WebSocket(wsUrl("/ws"));
 
   ws.onmessage = (evt) => {
     try {

@@ -1,8 +1,19 @@
 import os
 
+# ── Serverless (Vercel) bootstrap ─────────────────────────────────────────────
+# Vercel's function bundle is read-only: only /tmp is writable, and it is
+# ephemeral scratch space that is not shared between function instances. Every
+# relative path this app uses (./fieldproof.db, ./uploads) is made to land in
+# /tmp *before* settings, the SQLAlchemy engine and the static mounts are
+# created. Local development is untouched because VERCEL is unset there.
+if os.environ.get("VERCEL"):
+    os.chdir("/tmp")
+    os.environ.setdefault("DATABASE_URL", "sqlite:////tmp/fieldproof.db")
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.config import settings
 from app.database import Base, engine, ensure_sqlite_columns
@@ -65,3 +76,32 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.receive_text()  
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+
+class _ApiPrefix:
+    """ASGI wrapper that serves the app under /api.
+
+    Vercel Services routes /api/* to the entrypoint below with the original
+    public path (e.g. /api/auth/login), while the FastAPI routes are declared
+    without that prefix. Strip it before routing; requests that already arrive
+    unprefixed (local runs, proxies that rewrite) pass through untouched, and
+    scope["root_path"] is left alone so Starlette's get_route_path() stays
+    consistent in either case.
+    """
+
+    def __init__(self, app: ASGIApp, prefix: str = "/api") -> None:
+        self.app = app
+        self.prefix = prefix
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] in ("http", "websocket"):
+            path = scope.get("path", "")
+            if path == self.prefix or path.startswith(self.prefix + "/"):
+                scope = dict(scope)
+                scope["path"] = path[len(self.prefix) :] or "/"
+        await self.app(scope, receive, send)
+
+
+# Entrypoint used by vercel.json ("entrypoint": "app.main:api").
+# `app` stays the plain FastAPI instance for uvicorn and the test suite.
+api = _ApiPrefix(app)
