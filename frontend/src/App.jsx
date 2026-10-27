@@ -1125,7 +1125,7 @@ function JobDetailModal({ job, technicians, documents = [], complianceEvents = [
                   </div>
                   {d.file_url && (
                     <a
-                      href={`${api.API_BASE_URL}${d.file_url}`}
+                      href={`${api.fileHref(d.file_url)}`}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-1 text-xs font-semibold text-orange-600 hover:text-orange-700 bg-orange-50 border border-orange-200 px-3 py-1.5 rounded-full"
@@ -1797,7 +1797,7 @@ function TemplateDetailPanel({
           <p className="text-xs text-stone-500 mt-1 mb-4">It's in Documents, status Pending Review.</p>
           {generatedDoc.file_url && (
             <a
-              href={`${api.API_BASE_URL}${generatedDoc.file_url}`}
+              href={`${api.fileHref(generatedDoc.file_url)}`}
               target="_blank" rel="noreferrer"
               className="inline-flex items-center gap-2 text-xs font-semibold text-white bg-stone-900 rounded-full px-4 py-2"
             >
@@ -2705,7 +2705,7 @@ function DocumentsView({ documents, jobs, complianceEvents = [], captureSubmissi
                           )}
                           <button onClick={() => setReviewing(d)} className="text-xs font-semibold text-stone-700 border border-stone-200 rounded-full px-3 py-1.5">Review</button>
                           {d.file_url && (
-                            <a href={`${api.API_BASE_URL}${d.file_url}`} target="_blank" rel="noreferrer" className="p-2 rounded-lg hover:bg-stone-100">
+                            <a href={`${api.fileHref(d.file_url)}`} target="_blank" rel="noreferrer" className="p-2 rounded-lg hover:bg-stone-100">
                               <Download className="h-4 w-4 text-stone-500" />
                             </a>
                           )}
@@ -2834,7 +2834,7 @@ function DocumentsView({ documents, jobs, complianceEvents = [], captureSubmissi
 
             {reviewing.file_url && (
               <a
-                href={`${api.API_BASE_URL}${reviewing.file_url}`} target="_blank" rel="noreferrer"
+                href={`${api.fileHref(reviewing.file_url)}`} target="_blank" rel="noreferrer"
                 className="flex items-center justify-center gap-2 text-xs font-semibold text-stone-700 border border-stone-200 rounded-full py-2.5 hover:bg-stone-50"
               >
                 <Download className="h-3.5 w-3.5" /> Download document (.docx)
@@ -3054,7 +3054,7 @@ function ReviewSubmissionView({ jobId, onBack, onDocumentCreated }) {
                         <p className="text-xs font-semibold text-stone-700">{c.kind === "voice" ? "Voice note" : "Photo"}</p>
                         <p className="text-[11px] text-stone-400">{c.created_at ? relativeTime(c.created_at) : ""}{c.processed ? " · AI processed" : " · queued"}</p>
                       </div>
-                      <a href={`${api.API_BASE_URL}${c.file_url}`} target="_blank" rel="noreferrer" className="p-1.5 rounded-lg hover:bg-stone-100" title={c.kind === "voice" ? "Play voice note" : "Open photo"}>
+                      <a href={`${api.fileHref(c.file_url)}`} target="_blank" rel="noreferrer" className="p-1.5 rounded-lg hover:bg-stone-100" title={c.kind === "voice" ? "Play voice note" : "Open photo"}>
                         {c.kind === "voice" ? <Volume2 className="h-4 w-4 text-stone-500" /> : <Eye className="h-4 w-4 text-stone-500" />}
                       </a>
                     </div>
@@ -3103,7 +3103,7 @@ function ReviewSubmissionView({ jobId, onBack, onDocumentCreated }) {
                     <p className="text-xs font-medium text-stone-700 truncate">{d.name}</p>
                     <div className="flex items-center gap-2 shrink-0">
                       <StatusPill label={d.status} />
-                      {d.file_url && <a href={`${api.API_BASE_URL}${d.file_url}`} target="_blank" rel="noreferrer" className="p-1.5 rounded-lg hover:bg-stone-100"><Download className="h-4 w-4 text-stone-500" /></a>}
+                      {d.file_url && <a href={`${api.fileHref(d.file_url)}`} target="_blank" rel="noreferrer" className="p-1.5 rounded-lg hover:bg-stone-100"><Download className="h-4 w-4 text-stone-500" /></a>}
                     </div>
                   </div>
                 ))}
@@ -3224,7 +3224,7 @@ function ReviewSubmissionView({ jobId, onBack, onDocumentCreated }) {
               <p className="text-xs text-emerald-700 mb-3">{createdDoc.name} · {createdDoc.extracted_fields.length} fields filled · now Pending Review.</p>
               <div className="flex flex-wrap gap-3">
                 {createdDoc.file_url && (
-                  <a href={`${api.API_BASE_URL}${createdDoc.file_url}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-xs font-semibold text-stone-700 bg-white border border-stone-200 rounded-full px-4 py-2 hover:bg-stone-50">
+                  <a href={`${api.fileHref(createdDoc.file_url)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-xs font-semibold text-stone-700 bg-white border border-stone-200 rounded-full px-4 py-2 hover:bg-stone-50">
                     <Download className="h-3.5 w-3.5" /> Open .docx
                   </a>
                 )}
@@ -3321,7 +3321,7 @@ function TechnicianDetailPanel({ tech, onClose, onReviewSubmission }) {
                       {c.processed ? "Processed" : "Queued"}
                     </span>
                     <a
-                      href={`${api.API_BASE_URL}${c.file_url}`}
+                      href={`${api.fileHref(c.file_url)}`}
                       target="_blank"
                       rel="noreferrer"
                       className="p-1.5 rounded-lg hover:bg-stone-100 shrink-0"
@@ -3360,7 +3360,7 @@ function TechnicianDetailPanel({ tech, onClose, onReviewSubmission }) {
                         </button>
                       )}
                       {d.file_url && (
-                        <a href={`${api.API_BASE_URL}${d.file_url}`} target="_blank" rel="noreferrer" className="p-1.5 rounded-lg hover:bg-stone-100">
+                        <a href={`${api.fileHref(d.file_url)}`} target="_blank" rel="noreferrer" className="p-1.5 rounded-lg hover:bg-stone-100">
                           <Download className="h-4 w-4 text-stone-500" />
                         </a>
                       )}

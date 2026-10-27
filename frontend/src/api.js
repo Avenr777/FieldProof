@@ -26,6 +26,17 @@ const DEFAULT_URL = isLocalPage ? "http://127.0.0.1:8000" : "/api";
 const BASE_URL = (import.meta.env.VITE_API_URL || DEFAULT_URL).replace(/\/$/, "");
 export const API_BASE_URL = BASE_URL;
 
+/**
+ * fileHref turns a stored file URL into a clickable URL. Absolute URLs
+ * (Vercel Blob on the deployed site) are used as-is; relative
+ * /uploads/... paths are prefixed with the API base (local dev, or when
+ * no Blob store is attached).
+ */
+export function fileHref(fileUrl) {
+  if (!fileUrl) return fileUrl;
+  return /^https?:\/\//.test(fileUrl) ? fileUrl : `${BASE_URL}${fileUrl}`;
+}
+
 // ─── In-memory token store ────────────────────────────────────────────────────
 let _token = null;
 
@@ -475,7 +486,33 @@ export async function getAnalyticsSummary() {
  * @param {File} file
  * @param {string} [templateId]
  */
+/**
+ * Vercel rejects request bodies over 4.5 MB and phone photos routinely
+ * exceed that. Downscale big photos to a <=2000px JPEG before upload;
+ * voice notes and already-small files pass through untouched.
+ */
+async function _compressPhoto(file) {
+  if (!file || typeof createImageBitmap !== "function") return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const maxEdge = Math.max(bitmap.width, bitmap.height);
+    if (file.size <= 3.5 * 1024 * 1024 && maxEdge <= 2000) return file;
+    const scale = Math.min(1, 2000 / maxEdge);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
+    if (!blob || blob.size >= file.size) return file;
+    const name = (file.name || "photo.jpg").replace(/\.\w+$/, ".jpg");
+    return new File([blob], name, { type: "image/jpeg", lastModified: Date.now() });
+  } catch (_) {
+    return file; // any decoding problem → upload the original
+  }
+}
+
 export async function uploadCapture(jobId, kind, file, templateId = null) {
+  if (kind === "photo") file = await _compressPhoto(file);
   const form = new FormData();
   form.append("job_id", jobId);
   form.append("kind", kind);

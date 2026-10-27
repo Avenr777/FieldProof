@@ -1,24 +1,76 @@
 """
 Object storage abstraction.
 
-For now this saves uploads to a local ./uploads directory so the API is
-fully runnable without cloud credentials. Swap save_upload()'s body for a
-real boto3 (S3) or azure-storage-blob client when you're ready to deploy -
-the function signature used by the rest of the app won't need to change.
+Files are ALWAYS written to the local ./uploads directory first, so code
+running inside the same request (docx extraction, python-docx fills,
+Whisper/vision) can open them without a network round-trip.
+
+When BLOB_READ_WRITE_TOKEN is set (Vercel Blob store attached), every
+file is ALSO mirrored to Vercel Blob and the returned URL is the public
+Blob URL. Serverless instances don't share a filesystem, so this is what
+makes an upload from one instance visible to every other instance.
+Without the token (local development) the classic relative "/uploads/..."
+URL is returned and nothing changes.
+
+resolve_local_path() accepts both forms: relative paths strip the
+leading "/", absolute URLs are downloaded to a temp file so libraries
+that need a local file handle (python-docx, Whisper) keep working.
 """
+import logging
+import mimetypes
 import os
 import re
+import tempfile
 import uuid
+from urllib.parse import urlparse
 
+import httpx
 from fastapi import UploadFile
 
 UPLOAD_DIR = "uploads"
+
+logger = logging.getLogger("fieldproof.storage")
 
 
 def _slug(value: str) -> str:
     """Filesystem-safe folder segment (IDs are already safe; this guards
     against any future name-based segments)."""
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", value)[:60] or "unknown"
+
+
+def _blob_enabled() -> bool:
+    return bool(os.environ.get("BLOB_READ_WRITE_TOKEN"))
+
+
+def _key(path: str) -> str:
+    """Storage key for a local path: forward slashes, no leading slash."""
+    return path.replace(os.sep, "/").lstrip("/")
+
+
+def _put_blob(key: str, data: bytes) -> str | None:
+    """Mirror bytes to Vercel Blob under key.
+
+    Returns the public URL on success, or None when Blob is disabled or
+    an upload fails — callers fall back to the local relative URL so a
+    storage hiccup never turns into a 500.
+    """
+    if not _blob_enabled():
+        return None
+    try:
+        from vercel.blob.sync import put_blob
+
+        result = put_blob(
+            key,
+            data,
+            access="public",
+            content_type=mimetypes.guess_type(key)[0],
+            # Generated documents reuse {job_id}_{template_id}.docx per job.
+            allow_overwrite=True,
+        )
+        return result.url
+    except Exception as exc:
+        logger.error("Blob upload failed for %s: %s", key, exc)
+        return None
 
 
 async def save_capture_upload(
@@ -34,7 +86,8 @@ async def save_capture_upload(
 
     Every capture is therefore attributable to the company and the specific
     technician who uploaded it just by looking at the folder it lives in.
-    Returns the URL form (leading "/") that the rest of the app stores.
+    Returns the URL form the rest of the app stores: an absolute Blob URL
+    on Vercel, or "/uploads/..." locally.
     """
     folder = os.path.join(
         UPLOAD_DIR,
@@ -53,8 +106,7 @@ async def save_capture_upload(
     with open(path, "wb") as f:
         f.write(contents)
 
-    # In production this would be an S3/Blob URL instead of a local path
-    return f"/{path}"
+    return _put_blob(_key(path), contents) or f"/{path}"
 
 
 async def save_upload(file: UploadFile, prefix: str = "misc") -> str:
@@ -69,19 +121,43 @@ async def save_upload(file: UploadFile, prefix: str = "misc") -> str:
     with open(path, "wb") as f:
         f.write(contents)
 
-    # In production this would be an S3/Blob URL instead of a local path
-    return f"/{path}"
+    return _put_blob(_key(path), contents) or f"/{path}"
+
+
+def publish_local_file(local_path: str) -> str:
+    """Register a file that was written directly to disk (a generated
+    document): mirror it to Blob when enabled and return the URL form the
+    app should store — absolute Blob URL on Vercel, "/path" locally."""
+    key = _key(local_path)
+    try:
+        with open(local_path, "rb") as fh:
+            data = fh.read()
+    except OSError:
+        return f"/{key}"
+    return _put_blob(key, data) or f"/{key}"
 
 
 def resolve_local_path(file_url: str) -> str:
     """
-    Turns a URL previously returned by save_upload() back into a real
-    filesystem path that libraries like python-docx can open directly.
+    Turns a URL previously returned by save_upload()/publish_local_file()
+    back into a real filesystem path that libraries like python-docx and
+    Whisper can open directly.
 
-    Works as-is only because save_upload() currently stores locally and
-    returns f"/{path}" — this function just strips the leading "/". Once
-    save_upload() is swapped for a real S3/Blob client, this needs to
-    become "download the object to a temp file and return that path"
-    instead, since docx_extractor/docx_writer need a local file handle.
+    - Relative "/uploads/..." (local dev): strip the leading "/".
+    - Absolute "https://..." (Vercel Blob): download to a temp file and
+      return its path — serverless instances don't share a filesystem, so
+      the original may only exist on the instance that received it.
     """
+    if file_url.startswith(("http://", "https://")):
+        suffix = os.path.splitext(urlparse(file_url).path)[1] or ".bin"
+        fd, tmp_path = tempfile.mkstemp(suffix=suffix)
+        os.close(fd)
+        with httpx.stream(
+            "GET", file_url, follow_redirects=True, timeout=60.0
+        ) as resp:
+            resp.raise_for_status()
+            with open(tmp_path, "wb") as fh:
+                for chunk in resp.iter_bytes():
+                    fh.write(chunk)
+        return tmp_path
     return file_url.lstrip("/")

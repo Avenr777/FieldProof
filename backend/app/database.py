@@ -3,9 +3,20 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 
 from app.config import settings
 
-connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
+database_url = settings.database_url
+# Hosted providers (Vercel Marketplace / Neon) hand out postgresql:// URLs;
+# SQLAlchemy 2 needs the explicit psycopg3 driver suffix to match
+# requirements.txt (psycopg[binary]). SQLite URLs pass through untouched.
+if database_url.startswith("postgres://"):
+    database_url = "postgresql+psycopg://" + database_url[len("postgres://") :]
+elif database_url.startswith("postgresql://"):
+    database_url = "postgresql+psycopg://" + database_url[len("postgresql://") :]
 
-engine = create_engine(settings.database_url, connect_args=connect_args)
+connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
+
+# pool_pre_ping: hosted Postgres suspends idle compute (e.g. Neon free tier),
+# so a warm function instance may hold a dead connection — ping before reuse.
+engine = create_engine(database_url, connect_args=connect_args, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()

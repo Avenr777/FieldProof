@@ -1,3 +1,5 @@
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
@@ -167,28 +169,50 @@ async def create_capture(
 
     # Deferred import avoids requiring a running Redis instance just to
     # import the FastAPI app (e.g. when running tests without a worker).
-    # The enqueue must never hang the HTTP response: bounded by Celery's
-    # fail-fast broker settings plus a hard watchdog here. The pool is shut
-    # down without waiting so a stuck connect() can't block the response.
+    import asyncio
     import concurrent.futures
     import logging
 
-    def _enqueue() -> None:
-        from app.tasks import process_capture
-        process_capture.delay(capture.id)
+    log = logging.getLogger("fieldproof.capture")
 
-    pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-    try:
-        future = pool.submit(_enqueue)
-        future.result(timeout=5)
-    except concurrent.futures.TimeoutError:
-        logging.getLogger("fieldproof.capture").warning(
-            f"Celery enqueue timed out after 5s (Redis offline?); capture {capture.id} saved without processing"
-        )
-    except Exception as e:
-        logging.getLogger("fieldproof.capture").warning(f"Could not enqueue Celery task (Redis offline?): {e}")
-    finally:
-        pool.shutdown(wait=False, cancel_futures=True)
+    async def _process_inline() -> None:
+        # process_capture opens its own event loop (asyncio.run), so it
+        # must run on a worker thread — the request's loop is still running.
+        from app.tasks import process_capture
+
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, process_capture, capture.id)
+
+    if os.environ.get("VERCEL"):
+        # No Redis/Celery worker on Vercel: extract inline so Whisper /
+        # vision / fusion still run and the draft document gets built.
+        try:
+            await _process_inline()
+        except Exception as e:
+            log.warning("Inline capture processing failed for %s: %s", capture.id, e)
+    else:
+        # The enqueue must never hang the HTTP response: bounded by Celery's
+        # fail-fast broker settings plus a hard watchdog here. The pool is
+        # shut down without waiting so a stuck connect() can't block the
+        # response. Local development is unchanged: enqueue to Redis when
+        # it's up, warn-only when it isn't (background processing is optional
+        # locally — see README).
+        def _enqueue() -> None:
+            from app.tasks import process_capture
+            process_capture.delay(capture.id)
+
+        pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        try:
+            future = pool.submit(_enqueue)
+            future.result(timeout=5)
+        except concurrent.futures.TimeoutError:
+            log.warning(
+                f"Celery enqueue timed out after 5s (Redis offline?); capture {capture.id} saved without processing"
+            )
+        except Exception as e:
+            log.warning(f"Could not enqueue Celery task (Redis offline?): {e}")
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
 
     return schemas.CaptureCreated(
         id=capture.id,

@@ -356,7 +356,7 @@ async def fill_template(
         extracted_fields=extracted_fields,
         overall_confidence=100.0,
         status=models.DocStatus.pending_review,
-        file_url=f"/{output_path}",
+        file_url=storage.publish_local_file(output_path),
     )
     db.add(doc)
     tpl.times_used += 1

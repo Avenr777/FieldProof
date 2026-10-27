@@ -1,6 +1,11 @@
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 sqlalchemy==2.0.35
+# Postgres driver — used when DATABASE_URL points at a hosted database
+# (Vercel Marketplace / Neon). Local development keeps using SQLite.
+psycopg[binary]>=3,<4
+# Vercel Blob — mirrors uploads to persistent storage when BLOB_READ_WRITE_TOKEN is set
+vercel-blob>=0.5,<1
 pydantic[email]==2.13.4
 pydantic-settings==2.15.0
 python-jose[cryptography]==3.3.0

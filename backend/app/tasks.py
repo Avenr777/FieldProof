@@ -247,7 +247,7 @@ def _maybe_build_document(db, job_id: str):
                     os.makedirs(output_dir, exist_ok=True)
                     output_path = os.path.join(output_dir, f"{job.id}_{tpl.id}.docx")
                     fill_docx(input_path, output_path, fill_values, tpl.extraction["fields"])
-                    file_url = f"/{output_path}"
+                    file_url = storage.publish_local_file(output_path)
                     tpl.times_used = (tpl.times_used or 0) + 1
                 except Exception as e:
                     logger.error("docx fill failed for job %s: %s", job_id, e)
